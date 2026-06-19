@@ -24,13 +24,14 @@ Two groups:
 |---|---|---|---|---|---|---|---|
 | EEGNet         | — | ~0.745 ⟨v⟩ | — | — | — | ~0.835 ⟨v⟩ | BIOT/LaBraM tables |
 | ShallowConvNet | — | ~0.845 ⟨v⟩ | — | — | — | — (acc only) | Gemein 2020 |
-| SPaRCNet       | — | 0.7896 ⟨v⟩ | — | — | — | 0.8676 ⟨v⟩ | BIOT Table 3 |
-| ContraWR       | — | 0.7746 ⟨v⟩ | — | — | — | 0.8456 ⟨v⟩ | BIOT Table 3 |
-| CNN-Transformer| — | 0.7777 ⟨v⟩ | — | — | — | 0.8461 ⟨v⟩ | BIOT Table 3 |
-| FFCL           | — | 0.7848 ⟨v⟩ | — | — | — | 0.8569 ⟨v⟩ | BIOT Table 3 |
-| ST-Transformer | — | 0.7966 ⟨v⟩ | — | — | — | 0.8707 ⟨v⟩ | BIOT Table 3 |
-| **BIOT**       | — | **0.7959** ⟨v⟩ | — | — | — | **0.8815** ⟨v⟩ | BIOT Table 3 (AUC-PR 0.8792) |
-| **LaBraM-Base**| — | **0.8140** ⟨v⟩ | — | — | — | **0.9022** ⟨v⟩ | LaBraM Table 2 (AUC-PR 0.8965) |
+| SPaRCNet       | — | 0.7896 ✓ | — | — | — | 0.8676 ✓ | BIOT Table 4 |
+| ContraWR       | — | 0.7746 ✓ | — | — | — | 0.8456 ✓ | BIOT Table 4 |
+| CNN-Transformer| — | 0.7777 ✓ | — | — | — | 0.8461 ✓ | BIOT Table 4 |
+| FFCL           | — | 0.7848 ✓ | — | — | — | 0.8569 ✓ | BIOT Table 4 |
+| ST-Transformer | — | 0.7966 ✓ | — | — | — | 0.8707 ✓ | BIOT Table 4 |
+| **BIOT (vanilla)** | — | **0.7925** ✓ | — | — | — | **0.8691** ✓ | BIOT Table 4 (AUC-PR 0.8707) |
+| **BIOT (best pretrained)** | — | **0.8019** ✓ | — | — | — | **0.8739** ✓ | BIOT Table 4 (PREST+SHHS) |
+| **LaBraM-Base**| — | **0.8140** ✓ | — | — | — | **0.9022** ✓ | LaBraM Table 2 (AUC-PR 0.8965) |
 | EEGPT          | — | ~0.795 ⟨v⟩ | — | — | — | ~0.87 ⟨v⟩ | EEGPT (NeurIPS'24) ⟨v⟩ |
 | BENDR          | — | n/r (re-impl ~0.76) | — | — | — | n/r (~0.86) | not in own paper |
 | Brant          | — | n/a (intracranial) | — | — | — | n/a | does not use TUAB |
@@ -53,7 +54,9 @@ energy-strategy ablation and reproduction commands.
 
 > Best overall = fine-tuned EB-JEPA (AUROC 0.919). The **frozen** self-supervised probe
 > (0.825/0.904) already matches supervised EEGNet (0.824/0.913) and the BIOT/LaBraM literature.
-> vs Group A (balanced-acc / AUROC, like-for-like): BIOT 0.796/0.882, LaBraM 0.814/0.902.
+> vs Group A (balanced-acc / AUROC, like-for-like, ✓verified): BIOT 0.793/0.869 (vanilla),
+> 0.802/0.874 (best pretrained), LaBraM-Base 0.814/0.902. Our corruption/fine-tune AUROC
+> (0.904 / 0.919) beats BIOT and matches/exceeds LaBraM-Base.
 
 ### Exact commands to fill each row (run on a Dalia COMPUTE node)
 

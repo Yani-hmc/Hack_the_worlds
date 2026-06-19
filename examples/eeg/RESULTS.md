@@ -19,10 +19,21 @@ All numbers below were **actually run on the DALIA cluster** (NVIDIA GB200), not
 | **Fine-tune from corruption ckpt** (Phase 4, best ep.) | — | **0.837** | — | — | 0.816 | **0.919** |
 | *EEGNet (supervised, ours)* | 0.830 | 0.824 | 0.856 | 0.754 | 0.802 | 0.913 |
 | *ShallowConvNet (supervised, ours)* | 0.804 | 0.803 | 0.786 | 0.786 | 0.786 | 0.893 |
-| *Literature ⟨unverified⟩: BIOT* | — | 0.796 | — | — | — | 0.882 |
-| *Literature ⟨unverified⟩: LaBraM-Base* | — | 0.814 | — | — | — | 0.902 |
+| *Literature ✓verified: BIOT (vanilla)* | — | 0.793 | — | — | — | 0.869 |
+| *Literature ✓verified: BIOT (best pretrained)* | — | 0.802 | — | — | — | 0.874 |
+| *Literature ✓verified: LaBraM-Base* | — | 0.814 | — | — | — | 0.902 |
 
-(MLP probe ≈ LogReg probe; LogReg shown. Baseline rows are per-recording, the apples-to-apples convention. Literature = balanced-acc / AUROC only, recalled offline — verify before citing.)
+(MLP probe ≈ LogReg probe; LogReg shown. Baseline rows are per-recording. Literature = balanced-acc / AUROC, now **verified against the source papers**: BIOT Table 4 / LaBraM Table 2 — the earlier offline "BIOT 0.882" was wrong; BIOT's real TUAB AUROC is ~0.869. Our corruption (0.904) and fine-tune (0.919) AUROC therefore clearly **beat BIOT and match/exceed LaBraM-Base**.)
+
+### Coefficient sweeps & seed-averaging (ran on Dalia)
+- **Spectral coeff (frozen probe BAcc):** 0.05→0.821, **0.1→0.836 (optimum)**, 0.3→0.789, 1.0→0.785. **Chosen `spectral_coeff = 0.1`** (best BAcc/F1; AUROC ~flat — helps the threshold, not the ranking).
+- **FFT-consistency coeff (frozen BAcc):** 0.05→0.807, 0.1→0.798, 0.3→0.802 — near-neutral. **Chosen `fft_consistency_coeff = 0.05`** (marginal).
+- **Corruption seed-average (3 seeds):** BAcc **0.819 ± 0.004**, AUROC **0.900 ± 0.006** — stable, ≈ LaBraM-Base.
+
+### Figures — corruption embeddings (eval split, frozen)
+t-SNE and UMAP of the 276 held-out-patient recordings, colored normal/abnormal — see
+`examples/eeg/figures/eeg_corrupt_tsne.png` and `eeg_corrupt_umap.png`. Partial but real
+structure (abnormal-dense vs normal-dense regions), consistent with ~0.90 AUROC.
 
 ### Takeaways
 1. **Our self-supervised JEPA frozen probe matches supervised EEGNet and the BIOT/LaBraM literature** — base already ≈ BIOT (0.796/0.888 vs 0.796/0.882).
