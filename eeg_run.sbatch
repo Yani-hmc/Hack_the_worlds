@@ -14,5 +14,5 @@ TAG="${TAG:-base}"; CKPT="$WORK/checkpoints/eeg/$TAG"; mkdir -p "$CKPT"
 echo "=== TRAIN tag=$TAG overrides: ${OVR:-(none)} ==="
 uv run python _run.py fname=examples/eeg/cfgs/train.yaml meta.ckpt_dir="$CKPT" data.num_workers=16 $OVR
 echo "=== EVAL tag=$TAG ==="
-uv run python -m examples.eeg.eval --ckpt "$CKPT/latest.pth.tar" --probe both | tee "$CKPT/eval.txt"
+uv run python -m examples.eeg.eval --ckpt "$CKPT/latest.pth.tar" --probe both --level both | tee "$CKPT/eval.txt"
 echo "=== DONE tag=$TAG ==="

@@ -25,7 +25,7 @@ from eb_jepa.datasets.eeg.dataset import EEGConfig, make_loader
 #   eb_jepa.architectures: Projector (MLP), RNNPredictor (GRU)
 #   eb_jepa.losses:        VICRegLoss (inv+var+cov), VCLoss (variance+covariance)
 from eb_jepa.architectures import Projector
-from eb_jepa.losses import VICRegLoss
+from eb_jepa.losses import BCS, VICRegLoss
 from examples.eeg.spectral_losses import (MultiScaleSpectralLoss,
                                           FFTMagConsistencyLoss)
 
@@ -104,10 +104,20 @@ class TwoViewVICReg(nn.Module):
         self.encoder = encoder
         spec = getattr(cfg, "projector_spec", f"{cfg.out_dim}-1024-1024-1024")
         self.projector = Projector(spec)
-        self.criterion = VICRegLoss(
-            std_coeff=getattr(cfg, "std_coeff", 25.0),
-            cov_coeff=getattr(cfg, "cov_coeff", 1.0),
-        )
+        self.ssl_loss = getattr(cfg, "ssl_loss", "vicreg")
+        if self.ssl_loss == "vicreg":
+            self.criterion = VICRegLoss(
+                std_coeff=getattr(cfg, "std_coeff", 25.0),
+                cov_coeff=getattr(cfg, "cov_coeff", 1.0),
+            )
+        elif self.ssl_loss == "sigreg":
+            # LeJEPA / BCS: invariance + Epps-Pulley Gaussianity test as anti-collapse
+            self.criterion = BCS(
+                num_slices=getattr(cfg, "num_slices", 256),
+                lmbd=getattr(cfg, "lmbd", 10.0),
+            )
+        else:
+            raise ValueError(f"unknown model.ssl_loss={self.ssl_loss!r}")
         # --- Phase 5: optional auxiliary spectral terms (default 0 = base run) ---
         # Both compare the two corrupted views (v1, v2) directly in the spectral
         # domain. With coeff 0 they are not even evaluated, so the base pipeline is
@@ -133,11 +143,17 @@ class TwoViewVICReg(nn.Module):
         z2 = self.projector(fm2.mean(dim=2))
         out = self.criterion(z1, z2)
         loss = out["loss"]
-        logs = {
-            "inv": round(out["invariance_loss"].item(), 4),
-            "var": round(out["var_loss"].item(), 4),
-            "cov": round(out["cov_loss"].item(), 4),
-        }
+        if self.ssl_loss == "vicreg":
+            logs = {
+                "inv": round(out["invariance_loss"].item(), 4),
+                "var": round(out["var_loss"].item(), 4),
+                "cov": round(out["cov_loss"].item(), 4),
+            }
+        else:  # sigreg: invariance + bcs (Epps-Pulley Gaussianity)
+            logs = {
+                "inv": round(out["invariance_loss"].item(), 4),
+                "bcs": round(out["bcs_loss"].item(), 4),
+            }
         # Phase 5: the spectral terms operate on the ENCODER FEATURE MAPS of the
         # two views (latent sequences [B, D, L]), NOT the raw inputs. Comparing
         # raw v1/v2 spectra is constant w.r.t. the model -> zero gradient -> no
