@@ -39,6 +39,7 @@ dependencies = [
     "omegaconf",
     "pyyaml",
     "ruamel.yaml",
+    "pyedflib",      # EDF reader for examples/eeg (eb_jepa/datasets/eeg/dataset.py)
 ]
 requires-python = "==3.12.*"
 
