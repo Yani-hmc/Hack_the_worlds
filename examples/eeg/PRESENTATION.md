@@ -1,5 +1,12 @@
 # EB time-series JEPA on TUAB — full results presentation
 
+> ⚠️ **CORRECTION / read `RESULTS_COMPILED.md` first.** The tables below report **per-recording**
+> scores. The TUAB literature (BIOT, LaBraM) scores **per-sample (per-window)** — verified. The
+> fair, like-for-like comparison is per-window, where our JEPA (0.770 BAcc) is **competitive with
+> simple baselines but below BIOT/LaBraM**. The "matches/beats BIOT/LaBraM" framing here is a
+> per-recording artifact and is **retracted** — see `RESULTS_COMPILED.md` for the sourced, corrected version.
+
+
 **Task:** self-supervised abnormal-EEG detection on the TUH Abnormal corpus (TUAB), the
 *golden benchmark* every SOTA EEG model reports on. **Patient-disjoint**, per-recording,
 n_eval = 276 (45.6% abnormal). All numbers ran on the DALIA GB200 cluster.

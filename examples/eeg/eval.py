@@ -23,10 +23,15 @@ from examples.eeg.main import build_encoder
 
 
 @torch.no_grad()
-def extract_features(encoder, split, device):
-    """Provided: frozen encoder -> [N_rec, D] recording-level features + labels.
+def extract_features(encoder, split, device, pool=True):
+    """Frozen encoder -> features + labels.
 
-    One embedding per recording: encode its N windows and mean-pool them.
+    pool=True  : ONE mean-pooled embedding per recording (RECORDING-level; easier,
+                 inflates metrics — what we report as the headline).
+    pool=False : every 10 s window kept as its own sample (WINDOW-level; label =
+                 the recording's label). This is the convention the TUAB literature
+                 (BIOT, LaBraM, EEGNet benchmarks) scores on — use it for a fair,
+                 apples-to-apples comparison.
     """
     ds = EEGDataset(EEGConfig(split=split, mode="probe"))
     loader = torch.utils.data.DataLoader(ds, batch_size=8, shuffle=False, num_workers=16,
@@ -35,11 +40,16 @@ def extract_features(encoder, split, device):
     for wins, labels, ok in loader:          # wins: [B, N, C, T]
         B, N = wins.shape[0], wins.shape[1]
         flat = wins.reshape(B * N, *wins.shape[2:]).to(device, non_blocking=True)
-        z = encoder.represent(flat).reshape(B, N, -1).mean(dim=1)  # [B, D]
-        z = z.cpu().numpy()
+        zr = encoder.represent(flat).reshape(B, N, -1)            # [B, N, D]
         for k in range(B):
-            if bool(ok[k]):                  # drop unreadable recordings
-                X.append(z[k]); y.append(int(labels[k]))
+            if not bool(ok[k]):              # drop unreadable recordings
+                continue
+            if pool:
+                X.append(zr[k].mean(dim=0).cpu().numpy()); y.append(int(labels[k]))
+            else:
+                zk = zr[k].cpu().numpy()
+                for n in range(N):
+                    X.append(zk[n]); y.append(int(labels[k]))
     return np.stack(X), np.array(y)
 
 
@@ -131,6 +141,10 @@ def main():
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--probe", default="logreg", choices=["logreg", "mlp", "both"],
                     help="frozen-feature classifier head")
+    ap.add_argument("--level", default="recording",
+                    choices=["recording", "window", "both"],
+                    help="recording-level (mean-pooled, headline) or window-level "
+                         "(per 10s window, the TUAB-literature convention) or both")
     args = ap.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -139,15 +153,16 @@ def main():
     encoder = build_encoder(cfg.model).to(device)
     encoder.load_state_dict(state["encoder"]); encoder.eval()
 
-    print("[eeg-eval] extracting TRAIN embeddings (fit set)...", flush=True)
-    Xtr, ytr = extract_features(encoder, "train", device)
-    print("[eeg-eval] extracting EVAL embeddings (held-out patients)...", flush=True)
-    Xev, yev = extract_features(encoder, "eval", device)
-
-    if args.probe in ("logreg", "both"):
-        print("[eeg-eval][logreg]", probe(Xtr, ytr, Xev, yev))
-    if args.probe in ("mlp", "both"):
-        print("[eeg-eval][mlp]   ", mlp_probe(Xtr, ytr, Xev, yev))
+    levels = ["recording", "window"] if args.level == "both" else [args.level]
+    for lvl in levels:
+        pool = (lvl == "recording")
+        print(f"[eeg-eval] extracting {lvl}-level features (pool={pool})...", flush=True)
+        Xtr, ytr = extract_features(encoder, "train", device, pool=pool)
+        Xev, yev = extract_features(encoder, "eval", device, pool=pool)
+        if args.probe in ("logreg", "both"):
+            print(f"[eeg-eval][{lvl}][logreg]", probe(Xtr, ytr, Xev, yev))
+        if args.probe in ("mlp", "both"):
+            print(f"[eeg-eval][{lvl}][mlp]   ", mlp_probe(Xtr, ytr, Xev, yev))
 
 
 if __name__ == "__main__":
