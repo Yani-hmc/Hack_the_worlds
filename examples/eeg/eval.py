@@ -46,18 +46,36 @@ def extract_features(encoder, split, device):
 # PROBE + METRIC  — # TODO
 # --------------------------------------------------------------------------- #
 def probe(Xtr, ytr, Xev, yev):
-    """TODO: fit a PATIENT-DISJOINT linear probe on the FROZEN train features and
-    score on the held-out-patient eval features. Return a metrics dict.
+    """Patient-disjoint frozen-feature probe.
 
-    No leakage: standardize features on TRAIN stats only (sklearn StandardScaler
-    fit on Xtr), then fit a LogisticRegression (class_weight='balanced' helps the
-    normal/abnormal imbalance) and score on the eval embeddings. Report:
-        accuracy / balanced-accuracy / AUROC   (normal=0 vs abnormal=1)
+    Standardize on TRAIN stats only (no leakage), fit a class-balanced
+    LogisticRegression on the train-patient embeddings, and score on the
+    held-out-patient eval embeddings. normal=0 vs abnormal=1.
+    """
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import (accuracy_score, balanced_accuracy_score,
+                                 f1_score, precision_score, recall_score,
+                                 roc_auc_score)
 
-    To make the number meaningful, also run this same probe on (a) a RANDOM
-    untrained encoder (floor) and (b) a supervised end-to-end baseline, and
-    compare. The eval metrics are on held-out patients — stress that."""
-    raise NotImplementedError("TODO: implement the patient-disjoint probe + metric (see docstring)")
+    scaler = StandardScaler().fit(Xtr)             # TRAIN stats only
+    Xtr_s, Xev_s = scaler.transform(Xtr), scaler.transform(Xev)
+
+    clf = LogisticRegression(max_iter=2000, class_weight="balanced")
+    clf.fit(Xtr_s, ytr)
+
+    pred = clf.predict(Xev_s)
+    proba = clf.predict_proba(Xev_s)[:, 1]
+    return {
+        "accuracy": round(float(accuracy_score(yev, pred)), 4),
+        "balanced_accuracy": round(float(balanced_accuracy_score(yev, pred)), 4),
+        "precision": round(float(precision_score(yev, pred, zero_division=0)), 4),
+        "recall": round(float(recall_score(yev, pred, zero_division=0)), 4),
+        "f1": round(float(f1_score(yev, pred, zero_division=0)), 4),
+        "auroc": round(float(roc_auc_score(yev, proba)), 4),
+        "n_train": int(len(ytr)), "n_eval": int(len(yev)),
+        "frac_abnormal_eval": round(float(np.mean(yev)), 4),
+    }
 
 
 def main():

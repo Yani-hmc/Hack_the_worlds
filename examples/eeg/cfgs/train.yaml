@@ -18,9 +18,14 @@ data:
 model:
   in_channels: 19
   out_dim: 256          # latent dim D (encoder output)
-  # TODO: add the hyperparameters your encoder / objective need
-  #       (hidden, depth, projector spec e.g. 256-1024-1024,
-  #        std_coeff, cov_coeff; or n_frames, predictor type, ema for JEPA)
+  # --- 1D conv encoder ---
+  hidden: 64            # base width (doubles each block until out_dim)
+  depth: 4              # strided conv blocks (time downsampled by 2^depth)
+  kernel: 7             # conv kernel size
+  # --- two-view VICReg objective ---
+  projector_spec: "256-1024-1024-1024"  # MUST start with out_dim
+  std_coeff: 25.0       # variance (anti-collapse) weight
+  cov_coeff: 1.0        # covariance (decorrelation) weight
 optim:
   epochs: 20
   lr: 0.001

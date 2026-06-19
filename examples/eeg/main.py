@@ -16,6 +16,7 @@ import os
 import sys
 
 import torch
+import torch.nn as nn
 from omegaconf import OmegaConf
 
 from eb_jepa.datasets.eeg.dataset import EEGConfig, make_loader
@@ -23,39 +24,105 @@ from eb_jepa.datasets.eeg.dataset import EEGConfig, make_loader
 # Reuse the eb_jepa core — DO NOT reimplement these:
 #   eb_jepa.architectures: Projector (MLP), RNNPredictor (GRU)
 #   eb_jepa.losses:        VICRegLoss (inv+var+cov), VCLoss (variance+covariance)
+from eb_jepa.architectures import Projector
+from eb_jepa.losses import VICRegLoss
 
 
 # --------------------------------------------------------------------------- #
 # 1) ENCODER  — # TODO
 # --------------------------------------------------------------------------- #
-def build_encoder(cfg):
-    """TODO: return a 1D encoder mapping an EEG window [B, C=n_channels, T] to a
-    representation. Expose `.represent(x) -> [B, D]` (global pooled over time)
-    and an `.out_dim` attribute. If you go for the predictive objective, also
-    expose `.frames(x) -> [B, F, D]` (a short latent sequence) and `.n_frames`.
+class EEG1DEncoder(nn.Module):
+    """1D conv encoder over EEG windows [B, C=19, T].
 
-    Hints: a strided Conv1d stack (kernel 7, stride 2, BatchNorm + GELU) that
-    downsamples time, followed by global average pooling, is a strong baseline
-    for [B, 19, 2000]. eb_jepa.architectures has 2D image/video encoders to take
-    inspiration from, not a 1D one — so this lives here."""
-    raise NotImplementedError("TODO: build the 1D EEG encoder (see docstring)")
+    A stack of strided Conv1d blocks (kernel 7, stride 2, BatchNorm + GELU)
+    halves the time axis each block; global average pooling then yields a
+    [B, out_dim] representation. `frames()` exposes the pre-pool latent
+    sequence [B, L, out_dim] for the optional predictive-JEPA objective.
+    """
+
+    def __init__(self, in_channels=19, hidden=64, out_dim=256, depth=4, kernel=7):
+        super().__init__()
+        widths = [hidden * (2 ** i) for i in range(depth - 1)] + [out_dim]
+        blocks, c_in = [], in_channels
+        for c_out in widths:
+            blocks += [
+                nn.Conv1d(c_in, c_out, kernel_size=kernel, stride=2,
+                          padding=kernel // 2, bias=False),
+                nn.BatchNorm1d(c_out),
+                nn.GELU(),
+            ]
+            c_in = c_out
+        self.backbone = nn.Sequential(*blocks)
+        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.out_dim = out_dim
+
+    def feature_map(self, x):       # [B, C, T] -> [B, out_dim, L]
+        return self.backbone(x)
+
+    def represent(self, x):         # [B, C, T] -> [B, out_dim]
+        return self.pool(self.feature_map(x)).flatten(1)
+
+    def frames(self, x):            # [B, C, T] -> [B, L, out_dim]
+        return self.feature_map(x).transpose(1, 2)
+
+    def forward(self, x):
+        return self.represent(x)
+
+
+def build_encoder(cfg):
+    """1D EEG encoder: strided Conv1d stack + global average pooling."""
+    return EEG1DEncoder(
+        in_channels=cfg.in_channels,
+        hidden=getattr(cfg, "hidden", 64),
+        out_dim=cfg.out_dim,
+        depth=getattr(cfg, "depth", 4),
+        kernel=getattr(cfg, "kernel", 7),
+    )
 
 
 # --------------------------------------------------------------------------- #
 # 2) SSL OBJECTIVE  — # TODO
 # --------------------------------------------------------------------------- #
+class TwoViewVICReg(nn.Module):
+    """Two-view VICReg ("EB time-series JEPA", invariance form).
+
+    The dataset returns two independently-corrupted views (v1, v2) of the SAME
+    window (masking + channel-drop + noise + scale jitter — set their strengths
+    in the data config). We encode both, project, and apply VICReg:
+        invariance  : pull the two views' embeddings together (learn what is
+                      invariant to the corruption)
+        variance    : keep each dim's std above a margin  (anti-collapse)
+        covariance  : decorrelate dims                    (anti-collapse)
+    The var+cov terms are what stop the encoder from mapping every window to the
+    same point.
+    """
+
+    def __init__(self, encoder, cfg):
+        super().__init__()
+        self.encoder = encoder
+        spec = getattr(cfg, "projector_spec", f"{cfg.out_dim}-1024-1024-1024")
+        self.projector = Projector(spec)
+        self.criterion = VICRegLoss(
+            std_coeff=getattr(cfg, "std_coeff", 25.0),
+            cov_coeff=getattr(cfg, "cov_coeff", 1.0),
+        )
+
+    def compute_loss(self, batch):
+        v1, v2 = batch
+        z1 = self.projector(self.encoder.represent(v1))
+        z2 = self.projector(self.encoder.represent(v2))
+        out = self.criterion(z1, z2)
+        logs = {
+            "inv": round(out["invariance_loss"].item(), 4),
+            "var": round(out["var_loss"].item(), 4),
+            "cov": round(out["cov_loss"].item(), 4),
+        }
+        return out["loss"], logs
+
+
 def build_ssl(encoder, cfg):
-    """TODO: return an nn.Module exposing `compute_loss(batch) -> (loss, logs)`.
-    Pick one:
-      * two-view VICReg (natural choice): the dataset already returns (v1, v2);
-        encoder.represent each view -> eb_jepa Projector -> VICRegLoss
-        (invariance + variance + covariance). batch = (v1, v2).
-      * predictive JEPA (optional): encode frames, roll an eb_jepa RNNPredictor
-        from a context frame to predict future frame latents vs an EMA target;
-        add VCLoss (anti-collapse) on the online latents.
-    Keep the variance/covariance (anti-collapse) term — it is what stops the
-    encoder from mapping every window to the same point."""
-    raise NotImplementedError("TODO: assemble the SSL objective (see docstring)")
+    """Two-view VICReg objective (invariance + variance + covariance)."""
+    return TwoViewVICReg(encoder, cfg)
 
 
 # --------------------------------------------------------------------------- #
