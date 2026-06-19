@@ -155,7 +155,14 @@ class TwoViewVICReg(nn.Module):
 
 
 def build_ssl(encoder, cfg):
-    """Two-view VICReg objective (invariance + variance + covariance)."""
+    """SSL objective: two-view VICReg (default) or masked-prediction JEPA.
+
+    cfg.ssl_type = "vicreg" (two-view invariance, default) | "masked"
+    (latent masked-prediction JEPA with an EMA target — the faithful JEPA form).
+    """
+    if getattr(cfg, "ssl_type", "vicreg") == "masked":
+        from examples.eeg.masked_jepa import MaskedJEPA
+        return MaskedJEPA(encoder, cfg)
     return TwoViewVICReg(encoder, cfg)
 
 

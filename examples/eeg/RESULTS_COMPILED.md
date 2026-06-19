@@ -84,6 +84,25 @@ Corruption seed-average (3 seeds, per-recording): BAcc 0.819 ± 0.004, AUROC 0.9
   models, but below the SOTA EEG transformers** at the fair per-sample level. The earlier
   "matches/beats BIOT/LaBraM" claim was an artifact of per-recording aggregation and is retracted.
 
+## C2 — Scaling & objective ablations (both NEGATIVE — honest)
+We tested two hypotheses for closing the gap to SOTA. Neither helped (window-level = fair):
+
+| Model | window BAcc / AUROC | recording BAcc / AUROC |
+|---|---|---|
+| corruption VICReg, **20 ep, small encoder** (our best) | **0.770 / 0.848** | **0.825 / 0.904** |
+| corruption VICReg, **150 ep, bigger encoder** (depth5/hidden96) | 0.768 / 0.849 | 0.805 / 0.892 |
+| **masked-prediction JEPA**, 150 ep, bigger encoder (mask 0.5) | 0.682 / 0.746 | 0.764 / 0.841 |
+
+- **Scaling (7.5× epochs + bigger encoder) did NOT help** — window-level flat (0.768 vs 0.770),
+  recording slightly worse. The simple VICReg+corruption has **plateaued** for this encoder/data.
+- **Masked-prediction JEPA underperformed** (window 0.682). Our quick implementation (EMA target +
+  Transformer predictor + VC anti-collapse, `examples/eeg/masked_jepa.py`) is worse than the
+  invariance form — it would need real tuning (mask ratio, predictor size, EMA/loss balance), and/or
+  the frozen global-pool readout doesn't suit a frame-prediction objective.
+- **Conclusion:** the **corruption augmentation** was the real gain; **scale and masked-modeling did
+  not move the needle here.** Closing the gap to LaBraM (0.814) likely needs its full recipe — neural
+  tokenizer + large transformer + huge pretraining data — which is out of hackathon scope.
+
 ## D. Method coefficients (our JEPA) and their sources
 - VICReg (the SSL energy): invariance 1, **std_coeff 25**, **cov_coeff 1** — VICReg defaults, Bardes et al. 2022 (ICLR).
 - Exact corruption: 20 % mask + 20 % ±6σ outliers — our design.
