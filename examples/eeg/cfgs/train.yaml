@@ -15,6 +15,13 @@ data:
   aug_scale_jitter: 0.2
   aug_chan_drop_p: 0.2
   aug_time_mask_frac: 0.2
+  # --- Phase 2: exact EB time-series corruption (~40% per view) ---
+  # aug_exact_corruption: false keeps the legacy contiguous time-mask (base run).
+  # Flip to true for ~20% time-masking + ~20% outlier injection per view.
+  aug_exact_corruption: false
+  aug_mask_frac: 0.2          # fraction of timepoints zero-masked (per channel)
+  aug_outlier_frac: 0.2       # fraction of timepoints replaced by outliers
+  aug_outlier_scale: 6.0      # outlier magnitude in z-scored sigmas (±k)
 model:
   in_channels: 19
   out_dim: 256          # latent dim D (encoder output)
@@ -26,6 +33,12 @@ model:
   projector_spec: "256-1024-1024-1024"  # MUST start with out_dim
   std_coeff: 25.0       # variance (anti-collapse) weight
   cov_coeff: 1.0        # covariance (decorrelation) weight
+  # --- Phase 5: optional auxiliary spectral losses (default 0 = base run) ---
+  spectral_coeff: 0.0          # DDSP multi-scale spectral loss weight
+  fft_consistency_coeff: 0.0   # whole-window FFT magnitude consistency weight
+  spectral_fft_sizes: [256, 128, 64, 32]
+  spectral_log_alpha: 1.0      # weight on the log-magnitude term (DDSP alpha)
+  fft_consistency_log: true    # take log of FFT magnitudes in the consistency term
 optim:
   epochs: 20
   lr: 0.001

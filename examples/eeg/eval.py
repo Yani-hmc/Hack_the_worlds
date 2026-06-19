@@ -10,8 +10,9 @@ but collapses across subjects is measuring identity, not pathology — so the he
 out-patient number is the only one that answers the transferability question.
 
 Run:  python -m examples.eeg.eval --ckpt <.../latest.pth.tar>
+      python -m examples.eeg.eval --ckpt <.../latest.pth.tar> --probe mlp
 """
-import sys
+import argparse
 
 import numpy as np
 import torch
@@ -45,27 +46,11 @@ def extract_features(encoder, split, device):
 # --------------------------------------------------------------------------- #
 # PROBE + METRIC  — # TODO
 # --------------------------------------------------------------------------- #
-def probe(Xtr, ytr, Xev, yev):
-    """Patient-disjoint frozen-feature probe.
-
-    Standardize on TRAIN stats only (no leakage), fit a class-balanced
-    LogisticRegression on the train-patient embeddings, and score on the
-    held-out-patient eval embeddings. normal=0 vs abnormal=1.
-    """
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.linear_model import LogisticRegression
+def _metrics(yev, pred, proba, ytr):
+    """Shared metric set: accuracy / balanced-acc / precision / recall / F1 / AUROC."""
     from sklearn.metrics import (accuracy_score, balanced_accuracy_score,
                                  f1_score, precision_score, recall_score,
                                  roc_auc_score)
-
-    scaler = StandardScaler().fit(Xtr)             # TRAIN stats only
-    Xtr_s, Xev_s = scaler.transform(Xtr), scaler.transform(Xev)
-
-    clf = LogisticRegression(max_iter=2000, class_weight="balanced")
-    clf.fit(Xtr_s, ytr)
-
-    pred = clf.predict(Xev_s)
-    proba = clf.predict_proba(Xev_s)[:, 1]
     return {
         "accuracy": round(float(accuracy_score(yev, pred)), 4),
         "balanced_accuracy": round(float(balanced_accuracy_score(yev, pred)), 4),
@@ -78,11 +63,78 @@ def probe(Xtr, ytr, Xev, yev):
     }
 
 
+def probe(Xtr, ytr, Xev, yev):
+    """Patient-disjoint frozen-feature probe.
+
+    Standardize on TRAIN stats only (no leakage), fit a class-balanced
+    LogisticRegression on the train-patient embeddings, and score on the
+    held-out-patient eval embeddings. normal=0 vs abnormal=1.
+    """
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.linear_model import LogisticRegression
+
+    scaler = StandardScaler().fit(Xtr)             # TRAIN stats only
+    Xtr_s, Xev_s = scaler.transform(Xtr), scaler.transform(Xev)
+
+    clf = LogisticRegression(max_iter=2000, class_weight="balanced")
+    clf.fit(Xtr_s, ytr)
+
+    pred = clf.predict(Xev_s)
+    proba = clf.predict_proba(Xev_s)[:, 1]
+    return _metrics(yev, pred, proba, ytr)
+
+
+def mlp_probe(Xtr, ytr, Xev, yev, hidden=256, epochs=200, lr=1e-3,
+              weight_decay=1e-4, seed=0):
+    """Phase 3b — small MLP head trained on the FROZEN features (patient-disjoint).
+
+    Same leakage discipline as the logreg probe: standardize on TRAIN stats only,
+    fit a 1-hidden-layer MLP with class-balanced loss, score on held-out patients.
+    Reports the same metric set as ``probe``.
+    """
+    import torch.nn as nn
+    from sklearn.preprocessing import StandardScaler
+
+    torch.manual_seed(seed)
+    dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    scaler = StandardScaler().fit(Xtr)
+    Xtr_s = torch.tensor(scaler.transform(Xtr), dtype=torch.float32, device=dev)
+    Xev_s = torch.tensor(scaler.transform(Xev), dtype=torch.float32, device=dev)
+    ytr_t = torch.tensor(ytr, dtype=torch.long, device=dev)
+
+    # class-balanced weights (counter abnormal/normal imbalance)
+    counts = np.bincount(ytr, minlength=2).astype(np.float64)
+    w = (counts.sum() / (2.0 * np.maximum(counts, 1.0)))
+    class_w = torch.tensor(w, dtype=torch.float32, device=dev)
+
+    net = nn.Sequential(
+        nn.Linear(Xtr.shape[1], hidden), nn.BatchNorm1d(hidden), nn.ReLU(),
+        nn.Dropout(0.3), nn.Linear(hidden, 2),
+    ).to(dev)
+    opt = torch.optim.AdamW(net.parameters(), lr=lr, weight_decay=weight_decay)
+    crit = nn.CrossEntropyLoss(weight=class_w)
+    net.train()
+    for _ in range(epochs):
+        opt.zero_grad(set_to_none=True)
+        loss = crit(net(Xtr_s), ytr_t)
+        loss.backward(); opt.step()
+    net.eval()
+    with torch.no_grad():
+        logits = net(Xev_s)
+        proba = torch.softmax(logits, dim=1)[:, 1].cpu().numpy()
+        pred = logits.argmax(dim=1).cpu().numpy()
+    return _metrics(yev, pred, proba, ytr)
+
+
 def main():
-    ckpt = sys.argv[sys.argv.index("--ckpt") + 1]
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ckpt", required=True)
+    ap.add_argument("--probe", default="logreg", choices=["logreg", "mlp", "both"],
+                    help="frozen-feature classifier head")
+    args = ap.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    state = torch.load(ckpt, map_location=device, weights_only=False)
+    state = torch.load(args.ckpt, map_location=device, weights_only=False)
     cfg = OmegaConf.create(state["cfg"])
     encoder = build_encoder(cfg.model).to(device)
     encoder.load_state_dict(state["encoder"]); encoder.eval()
@@ -91,7 +143,11 @@ def main():
     Xtr, ytr = extract_features(encoder, "train", device)
     print("[eeg-eval] extracting EVAL embeddings (held-out patients)...", flush=True)
     Xev, yev = extract_features(encoder, "eval", device)
-    print("[eeg-eval]", probe(Xtr, ytr, Xev, yev))
+
+    if args.probe in ("logreg", "both"):
+        print("[eeg-eval][logreg]", probe(Xtr, ytr, Xev, yev))
+    if args.probe in ("mlp", "both"):
+        print("[eeg-eval][mlp]   ", mlp_probe(Xtr, ytr, Xev, yev))
 
 
 if __name__ == "__main__":

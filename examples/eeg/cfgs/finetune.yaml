@@ -1,0 +1,34 @@
+# Phase 4 — end-to-end fine-tuning config (TUAB abnormality, patient-disjoint).
+# Run on Dalia:
+#   python -m examples.eeg.finetune --fname examples/eeg/cfgs/finetune.yaml \
+#       --init <.../latest.pth.tar>
+# Loads the SSL-pretrained encoder as init (--init), attaches a classification
+# head, and trains END-TO-END (encoder unfrozen) on TUAB train patients; evaluates
+# patient-disjoint on eval. Omit --init (or set init: null) to train from scratch
+# as a supervised baseline.
+meta:
+  seed: 0
+  ckpt_dir: UPDATEME/checkpoints/eeg/finetune
+  init: null               # path to SSL checkpoint; overridden by --init
+data:
+  data_root: /lustre/work/pdl17890/udl806719/datasets/Neuro/TUAB-TUEV/TUAB_PREPROCESSED
+  n_channels: 19
+  sfreq: 200
+  window_sec: 10.0
+  n_windows: 16            # evenly-spaced windows per recording (probe loader)
+  batch_size: 8            # recordings per batch (each yields n_windows windows)
+  num_workers: 8
+model:
+  in_channels: 19
+  out_dim: 256
+  hidden: 64
+  depth: 4
+  kernel: 7
+  head_hidden: 256         # classification head hidden width (0 = linear head)
+  head_dropout: 0.3
+optim:
+  epochs: 15
+  lr: 0.0003               # lower LR than SSL — encoder is fine-tuned, not reset
+  weight_decay: 1.0e-4
+  encoder_lr_mult: 0.1     # encoder LR = lr * this (head learns faster)
+  agg: mean                # how to aggregate the n_windows logits per recording: mean | logit_mean

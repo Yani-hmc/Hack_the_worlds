@@ -49,6 +49,16 @@ class EEGConfig:
     aug_scale_jitter: float = 0.2  # per-channel amplitude scale ~ U(1-j, 1+j)
     aug_chan_drop_p: float = 0.2   # prob a channel is zeroed
     aug_time_mask_frac: float = 0.2  # max fraction of timesteps masked
+    # --- Phase 2: EB time-series JEPA "exact" corruption ----------------- #
+    # Each view is ~40% corrupted = ~20% time-masking + ~20% outlier injection.
+    # When ``aug_outlier_frac > 0`` a fixed fraction of timepoints (per channel)
+    # is masked AND a disjoint fraction is replaced by large outliers, instead of
+    # the legacy variable-length contiguous mask above. Set aug_outlier_frac=0.0
+    # to fall back to the legacy behaviour exactly (default keeps base pipeline).
+    aug_exact_corruption: bool = False   # gate: use the exact 20%/20% scheme
+    aug_mask_frac: float = 0.2           # fraction of timepoints zero-masked (exact)
+    aug_outlier_frac: float = 0.2        # fraction of timepoints replaced by outliers
+    aug_outlier_scale: float = 6.0       # outlier magnitude in z-scored sigmas (±k)
 
 
 def _list_edf(root: str, split: str) -> List[str]:
@@ -170,12 +180,35 @@ class EEGDataset(torch.utils.data.Dataset):
         if cfg.aug_chan_drop_p > 0:
             mask = (rng.random(cfg.n_channels) > cfg.aug_chan_drop_p).astype(np.float32)
             x *= mask[:, None]
-        # time masking (zero a random contiguous span)
-        if cfg.aug_time_mask_frac > 0:
-            mlen = int(rng.uniform(0, cfg.aug_time_mask_frac) * self.window)
-            if mlen > 0:
-                s = int(rng.integers(0, self.window - mlen))
-                x[:, s:s + mlen] = 0.0
+        if getattr(cfg, "aug_exact_corruption", False):
+            # ---- Phase 2: exact EB time-series corruption (~40% per view) ----
+            # Per channel, pick disjoint random index sets: ~aug_mask_frac of
+            # timepoints are zero-masked and ~aug_outlier_frac are replaced by
+            # large ±k*sigma outliers (z-scored units). Sampling per channel keeps
+            # the two views independently and heterogeneously corrupted.
+            T = self.window
+            n_mask = int(round(cfg.aug_mask_frac * T))
+            n_out = int(round(cfg.aug_outlier_frac * T))
+            n_out = min(n_out, max(T - n_mask, 0))  # keep the two sets disjoint
+            if n_mask > 0 or n_out > 0:
+                for c in range(cfg.n_channels):
+                    if n_mask + n_out > T:
+                        break
+                    idx = rng.permutation(T)
+                    if n_mask > 0:
+                        x[c, idx[:n_mask]] = 0.0
+                    if n_out > 0:
+                        oi = idx[n_mask:n_mask + n_out]
+                        signs = rng.choice(
+                            np.array([-1.0, 1.0], dtype=np.float32), size=n_out)
+                        x[c, oi] = (cfg.aug_outlier_scale * signs).astype(np.float32)
+        else:
+            # legacy behaviour: zero a single random contiguous span
+            if cfg.aug_time_mask_frac > 0:
+                mlen = int(rng.uniform(0, cfg.aug_time_mask_frac) * self.window)
+                if mlen > 0:
+                    s = int(rng.integers(0, self.window - mlen))
+                    x[:, s:s + mlen] = 0.0
         return x
 
     def __getitem__(self, i):

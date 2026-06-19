@@ -1,0 +1,13 @@
+# Phase 5 — spectral-loss coefficient sweep config.
+# Consumed by examples/eeg/sweep_spectral.py, which launches one SSL run per grid
+# point (overriding model.spectral_coeff / model.fft_consistency_coeff) and then
+# the patient-disjoint probe, collecting AUROC.
+# Run on Dalia:
+#   python -m examples.eeg.sweep_spectral --fname examples/eeg/cfgs/sweep_spectral.yaml
+base_cfg: examples/eeg/cfgs/train.yaml
+ckpt_root: UPDATEME/checkpoints/eeg/sweep_spectral
+# grid values for each coefficient (cartesian product is swept)
+spectral_coeff: [0.0, 0.05, 0.1, 0.3]
+fft_consistency_coeff: [0.0, 0.05, 0.1]
+# optionally shrink epochs for a faster sweep (omit to use base_cfg epochs)
+epochs: 20

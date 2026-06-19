@@ -26,6 +26,8 @@ from eb_jepa.datasets.eeg.dataset import EEGConfig, make_loader
 #   eb_jepa.losses:        VICRegLoss (inv+var+cov), VCLoss (variance+covariance)
 from eb_jepa.architectures import Projector
 from eb_jepa.losses import VICRegLoss
+from examples.eeg.spectral_losses import (MultiScaleSpectralLoss,
+                                          FFTMagConsistencyLoss)
 
 
 # --------------------------------------------------------------------------- #
@@ -106,18 +108,41 @@ class TwoViewVICReg(nn.Module):
             std_coeff=getattr(cfg, "std_coeff", 25.0),
             cov_coeff=getattr(cfg, "cov_coeff", 1.0),
         )
+        # --- Phase 5: optional auxiliary spectral terms (default 0 = base run) ---
+        # Both compare the two corrupted views (v1, v2) directly in the spectral
+        # domain. With coeff 0 they are not even evaluated, so the base pipeline is
+        # byte-for-byte unchanged.
+        self.spectral_coeff = float(getattr(cfg, "spectral_coeff", 0.0))
+        self.fft_consistency_coeff = float(getattr(cfg, "fft_consistency_coeff", 0.0))
+        fft_sizes = getattr(cfg, "spectral_fft_sizes", [256, 128, 64, 32])
+        self.spectral_loss = MultiScaleSpectralLoss(
+            fft_sizes=list(fft_sizes),
+            alpha=float(getattr(cfg, "spectral_log_alpha", 1.0)),
+        )
+        self.fft_consistency_loss = FFTMagConsistencyLoss(
+            log=bool(getattr(cfg, "fft_consistency_log", True)),
+        )
 
     def compute_loss(self, batch):
         v1, v2 = batch
         z1 = self.projector(self.encoder.represent(v1))
         z2 = self.projector(self.encoder.represent(v2))
         out = self.criterion(z1, z2)
+        loss = out["loss"]
         logs = {
             "inv": round(out["invariance_loss"].item(), 4),
             "var": round(out["var_loss"].item(), 4),
             "cov": round(out["cov_loss"].item(), 4),
         }
-        return out["loss"], logs
+        if self.spectral_coeff > 0:
+            spec = self.spectral_loss(v1, v2)
+            loss = loss + self.spectral_coeff * spec
+            logs["spec"] = round(spec.item(), 4)
+        if self.fft_consistency_coeff > 0:
+            fftc = self.fft_consistency_loss(v1, v2)
+            loss = loss + self.fft_consistency_coeff * fftc
+            logs["fftc"] = round(fftc.item(), 4)
+        return loss, logs
 
 
 def build_ssl(encoder, cfg):
