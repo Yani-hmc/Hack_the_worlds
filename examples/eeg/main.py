@@ -125,8 +125,12 @@ class TwoViewVICReg(nn.Module):
 
     def compute_loss(self, batch):
         v1, v2 = batch
-        z1 = self.projector(self.encoder.represent(v1))
-        z2 = self.projector(self.encoder.represent(v2))
+        # One encoder forward per view; the feature map [B, D, L] is reused for
+        # BOTH the pooled VICReg representation and the spectral terms.
+        fm1 = self.encoder.feature_map(v1)            # [B, D, L]
+        fm2 = self.encoder.feature_map(v2)
+        z1 = self.projector(fm1.mean(dim=2))          # global avg pool == represent()
+        z2 = self.projector(fm2.mean(dim=2))
         out = self.criterion(z1, z2)
         loss = out["loss"]
         logs = {
@@ -134,12 +138,17 @@ class TwoViewVICReg(nn.Module):
             "var": round(out["var_loss"].item(), 4),
             "cov": round(out["cov_loss"].item(), 4),
         }
+        # Phase 5: the spectral terms operate on the ENCODER FEATURE MAPS of the
+        # two views (latent sequences [B, D, L]), NOT the raw inputs. Comparing
+        # raw v1/v2 spectra is constant w.r.t. the model -> zero gradient -> no
+        # effect on training; using the feature maps makes the term encoder-
+        # dependent so it actually backprops into the representation.
         if self.spectral_coeff > 0:
-            spec = self.spectral_loss(v1, v2)
+            spec = self.spectral_loss(fm1, fm2)
             loss = loss + self.spectral_coeff * spec
             logs["spec"] = round(spec.item(), 4)
         if self.fft_consistency_coeff > 0:
-            fftc = self.fft_consistency_loss(v1, v2)
+            fftc = self.fft_consistency_loss(fm1, fm2)
             loss = loss + self.fft_consistency_coeff * fftc
             logs["fftc"] = round(fftc.item(), 4)
         return loss, logs

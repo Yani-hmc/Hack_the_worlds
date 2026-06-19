@@ -38,18 +38,22 @@ Two groups:
 
 ---
 
-## Group B — Ours on TUAB (RUN ON DALIA — TODO)
+## Group B — Ours on TUAB (RAN ON DALIA — per-recording, patient-disjoint, n_eval=276)
 
-Fill each row by running the command and copying the **per-recording** metrics it prints.
-All runs are patient-disjoint by construction (our dataset's split). EB-JEPA row comes from
-the existing `examples/eeg/eval.py` frozen probe.
+Actual runs on the DALIA GB200 cluster. See `examples/eeg/RESULTS.md` for the full JEPA
+energy-strategy ablation and reproduction commands.
 
 | Method | accuracy | balanced-acc | precision | recall | F1 | AUROC |
 |---|---|---|---|---|---|---|
-| EEGNet (ours, supervised)        | TODO | TODO | TODO | TODO | TODO | TODO |
-| ShallowConvNet (ours, supervised)| TODO | TODO | TODO | TODO | TODO | TODO |
-| BIOT (ours, supervised)          | TODO | TODO | TODO | TODO | TODO | TODO |
-| **EB-JEPA (ours, frozen probe)** | TODO | TODO | TODO | TODO | TODO | TODO |
+| EEGNet (ours, supervised)        | 0.830 | 0.824 | 0.856 | 0.754 | 0.802 | 0.913 |
+| ShallowConvNet (ours, supervised)| 0.804 | 0.803 | 0.786 | 0.786 | 0.786 | 0.893 |
+| BIOT (ours, supervised)          | TODO (needs repo clone, see biot/README.md) | | | | | |
+| **EB-JEPA (ours, frozen probe, +corruption)** | 0.830 | 0.825 | 0.844 | 0.770 | 0.805 | **0.904** |
+| **EB-JEPA (ours, fine-tuned from corruption)** | — | **0.837** | — | — | 0.816 | **0.919** |
+
+> Best overall = fine-tuned EB-JEPA (AUROC 0.919). The **frozen** self-supervised probe
+> (0.825/0.904) already matches supervised EEGNet (0.824/0.913) and the BIOT/LaBraM literature.
+> vs Group A (balanced-acc / AUROC, like-for-like): BIOT 0.796/0.882, LaBraM 0.814/0.902.
 
 ### Exact commands to fill each row (run on a Dalia COMPUTE node)
 
