@@ -107,6 +107,27 @@ We tested four variants for closing the gap (window-level = fair vs literature):
   not move the needle here.** Closing the gap to LaBraM (0.814) likely needs its full recipe — neural
   tokenizer + large transformer + huge pretraining data — which is out of hackathon scope.
 
+## C3 — TUEV 6-class transfer test (a second, harder dataset)
+**Does the frozen TUAB-pretrained encoder transfer to a different task?** TUEV = 6-class EEG
+*event* classification (SPSW/GPED/PLED/EYEM/ARTF/BCKG), 19 ch @ 200 Hz (so the *same* encoder
+runs with zero retraining). We window event-centered seconds + subsample the dominant background
+class (else 99% is BCKG and the task is trivial), z-score per channel, and fit a class-balanced
+6-class logistic probe. Subject-disjoint train/eval. Code: `examples/eeg/tuev_probe.py`.
+
+| Frozen encoder | Acc | Balanced-acc | Macro-F1 | Weighted-F1 | Cohen-κ |
+|---|---|---|---|---|---|
+| **SIGReg (TUAB-pretrained, frozen)** | 0.405 | **0.364** | 0.312 | 0.431 | **0.197** |
+| Random encoder (floor) | 0.355 | 0.337 | 0.278 | 0.401 | 0.164 |
+| chance (6-class balanced) | — | 0.167 | — | — | 0.000 |
+
+- **The SSL representation beats the random-feature floor on every metric** (+0.03 balanced-acc,
+  +0.03 κ) — the TUAB-pretrained encoder learned structure that **transfers** to a different
+  6-class event task. This is the JEPA "one representation, many tasks" result.
+- **Well below TUEV-specialized SOTA** (BIOT/LaBraM train/fine-tune big transformers on TUEV) —
+  expected for a *frozen* transfer from a tiny TUAB encoder with a linear probe.
+- **Caveat:** our event-centered + background-subsampled windowing differs from the BIOT 5 s
+  event-segment protocol, so this is a representation-transfer probe, not a 1:1 TUEV benchmark.
+
 ## D. Method coefficients (our JEPA) and their sources
 - VICReg (the SSL energy): invariance 1, **std_coeff 25**, **cov_coeff 1** — VICReg defaults, Bardes et al. 2022 (ICLR).
 - Exact corruption: 20 % mask + 20 % ±6σ outliers — our design.
