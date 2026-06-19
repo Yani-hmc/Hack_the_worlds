@@ -84,15 +84,19 @@ Corruption seed-average (3 seeds, per-recording): BAcc 0.819 ± 0.004, AUROC 0.9
   models, but below the SOTA EEG transformers** at the fair per-sample level. The earlier
   "matches/beats BIOT/LaBraM" claim was an artifact of per-recording aggregation and is retracted.
 
-## C2 — Scaling & objective ablations (both NEGATIVE — honest)
-We tested two hypotheses for closing the gap to SOTA. Neither helped (window-level = fair):
+## C2 — Scaling & objective ablations (what moved the needle)
+We tested four variants for closing the gap (window-level = fair vs literature):
 
 | Model | window BAcc / AUROC | recording BAcc / AUROC |
 |---|---|---|
-| corruption VICReg, **20 ep, small encoder** (our best) | **0.770 / 0.848** | **0.825 / 0.904** |
+| corruption VICReg, **20 ep, small encoder** | 0.770 / 0.848 | 0.825 / 0.904 |
+| corruption **SIGReg** (LeJEPA/BCS), 20 ep, small | **0.775 / 0.856** | **0.825 / 0.913** |
 | corruption VICReg, **150 ep, bigger encoder** (depth5/hidden96) | 0.768 / 0.849 | 0.805 / 0.892 |
 | **masked-prediction JEPA**, 150 ep, bigger encoder (mask 0.5) | 0.682 / 0.746 | 0.764 / 0.841 |
 
+- **SIGReg (anti-collapse via Epps–Pulley Gaussianity, LeJEPA) is the best objective** — modestly
+  beats VICReg, especially AUROC (window 0.856 vs 0.848, recording 0.913 vs 0.904). Matches the
+  EB-JEPA paper's "SIGReg ≥ VICReg, easier to tune" finding.
 - **Scaling (7.5× epochs + bigger encoder) did NOT help** — window-level flat (0.768 vs 0.770),
   recording slightly worse. The simple VICReg+corruption has **plateaued** for this encoder/data.
 - **Masked-prediction JEPA underperformed** (window 0.682). Our quick implementation (EMA target +
