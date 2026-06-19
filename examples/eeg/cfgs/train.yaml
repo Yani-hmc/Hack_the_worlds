@@ -29,10 +29,15 @@ model:
   hidden: 64            # base width (doubles each block until out_dim)
   depth: 4              # strided conv blocks (time downsampled by 2^depth)
   kernel: 7             # conv kernel size
-  # --- two-view VICReg objective ---
+  # --- two-view SSL objective (selectable) ---
+  ssl_loss: vicreg      # vicreg (default) | sigreg (LeJEPA / BCS Gaussianity)
   projector_spec: "256-1024-1024-1024"  # MUST start with out_dim
+  # VICReg-only params
   std_coeff: 25.0       # variance (anti-collapse) weight
   cov_coeff: 1.0        # covariance (decorrelation) weight
+  # SIGReg-only params (used when ssl_loss=sigreg)
+  num_slices: 256       # number of random projections for BCS
+  lmbd: 10.0            # weight on the BCS (Gaussianity) term
   # --- Phase 5: optional auxiliary spectral losses (default 0 = base run) ---
   spectral_coeff: 0.0          # DDSP multi-scale spectral loss weight
   fft_consistency_coeff: 0.0   # whole-window FFT magnitude consistency weight
