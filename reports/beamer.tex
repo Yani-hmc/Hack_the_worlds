@@ -406,13 +406,13 @@ A linear probe on frozen features beats \textbf{ST-Transformer} and \textbf{CNN-
 % ─── 10. LATENT SPACE — EB-JEPA (30s) ───────────────────────────────────────
 \begin{frame}{Latent Space: EB-JEPA Representations}
 \begin{columns}[T]
-\column{0.65\textwidth}
+\column{0.74\textwidth}
 \IfFileExists{figures/comparison_4methods_lda_honest.png}{%
   \includegraphics[width=\linewidth]{figures/comparison_4methods_lda_honest.png}
 }{%
   \begin{center}\textcolor{muted}{\footnotesize [figure pending]}\end{center}
 }
-\column{0.33\textwidth}
+\column{0.24\textwidth}
 {\small
 \textbf{Setup:} Conv1D + VICReg $\lambda{=}1$ + corruption (BACC 0.819). 276 eval patients, 256-dim.
 
@@ -450,22 +450,11 @@ A linear probe on frozen features beats \textbf{ST-Transformer} and \textbf{CNN-
 \end{columns}
 \end{frame}
 
-% ─── 11. LATENT SPACE — BIOT vs EB-JEPA (30s) ───────────────────────────────
-\begin{frame}{Latent Space: BIOT vs EB-JEPA (LDA Comparison)}
+% ─── 11. LATENT SPACE — BIOT (30s) ──────────────────────────────────────────
+\begin{frame}{Latent Space: BIOT (LDA, Same Protocol)}
 
 \begin{columns}[T]
-\column{0.48\textwidth}
-\begin{center}
-{\small\textbf{EB-JEPA}: VICReg $\lambda{=}1$ + corruption}\\
-{\footnotesize BACC\textsubscript{REC} 0.819 (TUAB pretrained, 0.4M params)}
-\end{center}
-\IfFileExists{figures/lda_honest_tuab.png}{%
-  \includegraphics[width=\linewidth]{figures/lda_honest_tuab.png}
-}{%
-  \begin{center}\textcolor{muted}{\footnotesize [figure pending]}\end{center}
-}
-
-\column{0.48\textwidth}
+\column{0.62\textwidth}
 \begin{center}
 {\small\textbf{BIOT pretrained}: EEG-SHHS+PREST-18ch}\\
 {\footnotesize BACC\textsubscript{WIN} 0.802 (sleep+pathology pretraining, 1.2M)}
@@ -475,11 +464,17 @@ A linear probe on frozen features beats \textbf{ST-Transformer} and \textbf{CNN-
 }{%
   \begin{center}\textcolor{muted}{\footnotesize [figure pending]}\end{center}
 }
-\end{columns}
+\column{0.33\textwidth}
+{\small
+\textbf{Same LDA protocol} as EB-JEPA (slide before last): fit on TUAB \emph{train} (2717 rec), projected on \emph{eval} (276 rec, honest).
 
-\vspace{0.2em}
-{\small Both LDA: fit on TUAB \emph{train} (2717 rec) → projected on TUAB \emph{eval} (276 rec, honest).
-BIOT pretrained on sleep EEG (SHHS); domain mismatch with clinical pathology may reduce separability.}
+\vspace{0.3em}
+EB-JEPA: BACC\textsubscript{REC} 0.819, 0.4M params.
+
+\vspace{0.3em}
+\textcolor{muted}{\footnotesize BIOT pretrained on sleep EEG (SHHS); domain mismatch with clinical pathology may reduce separability.}
+}
+\end{columns}
 \end{frame}
 
 % ─── 12. SUMMARY (30s) ───────────────────────────────────────────────────────
