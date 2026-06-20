@@ -71,6 +71,21 @@ models, above the random floor.)
 
 ---
 
+## TABLE 6 — FAIR head-to-head (seed-averaged, final-epoch, no peeking), TUAB recording-level
+Both models trained properly and averaged over **3 seeds**; both reported at the **final epoch**
+(no best-epoch cherry-picking). This is the defensible comparison.
+
+| Model | Balanced Acc | AUROC |
+|---|---|---|
+| JEPA fine-tuned (SSL, **no labels in pretraining**) | 0.812 ± 0.004 | 0.908 ± 0.006 |
+| EEGNet (supervised, 30 ep, dropout 0.5) | 0.812 ± 0.013 | 0.911 ± 0.007 |
+
+→ **Statistically tied.** The self-supervised JEPA **matches** a properly-trained supervised EEGNet
+**without using any labels during pretraining** — the real SSL result. (An earlier single-seed,
+best-epoch reading suggested JEPA "beat" EEGNet 0.837 vs 0.824; that was cherry-picking + a lucky
+seed and is **retracted** — both honestly average to 0.812.) EEGNet architecture verified faithful
+to vlawhern/arl-eegmodels; 8 epochs was found NOT to under-train it (30 ep gave the same).
+
 ## One-line reading
 Per-window, our best JEPA = **0.775 BAcc / 0.856 AUROC**: ≈ ContraWR/FFCL, below SPaRCNet/
 ST-Transformer/BIOT, well below LaBraM. We are a clean, honest baseline — not SOTA. The gap is a
