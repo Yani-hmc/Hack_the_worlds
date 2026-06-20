@@ -124,6 +124,10 @@ def main():
     ap.add_argument("--n-windows", type=int, default=16)
     ap.add_argument("--num-workers", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--pretrained-ckpt", default=None,
+                    help="Optional path to a BIOT pretrained checkpoint "
+                    "(e.g. $WORK/external/BIOT/pretrained-models/EEG-six-datasets-18-channels.ckpt). "
+                    "When set, loads the encoder weights then fine-tunes end-to-end.")
     args = ap.parse_args()
 
     torch.manual_seed(args.seed); np.random.seed(args.seed)
@@ -142,6 +146,15 @@ def main():
         persistent_workers=args.num_workers > 0)
 
     model = build_biot(args.n_channels, n_classes=2, sampling_rate=200).to(device)
+    if args.pretrained_ckpt:
+        # Pretrained checkpoints in BIOT/pretrained-models/ are raw BIOTEncoder
+        # state dicts (no "biot." prefix). Load into model.biot directly.
+        print(f"[biot] loading pretrained encoder from {args.pretrained_ckpt}", flush=True)
+        state = torch.load(args.pretrained_ckpt, map_location=device, weights_only=False)
+        if "state_dict" in state:
+            state = state["state_dict"]
+        missing, unexpected = model.biot.load_state_dict(state, strict=False)
+        print(f"[biot]   loaded; missing={len(missing)} unexpected={len(unexpected)}", flush=True)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr,
                             weight_decay=args.weight_decay)
     crit = nn.CrossEntropyLoss()
