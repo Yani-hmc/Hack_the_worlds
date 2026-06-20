@@ -37,8 +37,8 @@ Metric = Balanced Accuracy / AUROC. ✓ = we confirmed the value in the cited ta
 
 | Method | BAcc | AUROC | Source (✓ verified) |
 |---|---|---|---|
-| EEGNet | 0.764 | 0.841 | EEG-Bench, arXiv:2512.08959 (orig. EEGNet: Lawhern 2018, arXiv:1611.08024) |
-| ShallowConvNet | ~0.752 | — | spectral-audit, arXiv:2606.08583. *Note:* Schirrmeister 2017 (arXiv:1708.08012) reports **84.5% accuracy** (NOT balanced-acc) — different metric |
+| EEGNet | 0.804 | — | spectral-audit Tbl 1 (arXiv:2606.08583) ✅ — Lawhern 2018 does NOT evaluate TUAB; see SOTA_TABLE.md §D (earlier "0.764/0.841" was a hallucination) |
+| ShallowConvNet | 0.796 | — | spectral-audit Tbl 1 (arXiv:2606.08583) ✅ — or Schirrmeister-derived BAcc 0.839; earlier "~0.752" was a hallucination |
 | SPaRCNet | 0.7896 | 0.8676 | BIOT Table 4, arXiv:2305.10351 |
 | ContraWR | 0.7746 | 0.8456 | BIOT Table 4 |
 | CNN-Transformer | 0.7777 | 0.8461 | BIOT Table 4 |
@@ -86,12 +86,12 @@ Corruption seed-average (3 seeds, per-recording): BAcc 0.819 ± 0.004, AUROC 0.9
 ---
 
 ## C. Honest comparison (per-window, like-for-like)
-- Our **best self-supervised JEPA (corruption): 0.770 / 0.848** sits **≈ EEGNet (0.764/0.841)** and
-  **≈ ContraWR (0.775/0.846)**; **below** BIOT (0.793/0.869), ST-Transformer (0.797/0.871) and
-  **well below LaBraM-Base (0.814/0.902)**.
-- Our **supervised EEGNet (0.796/0.882)** lands ~3 pts above the *published* EEGNet (0.764/0.841) —
-  attributable to preprocessing (19-ch z-scored `TUAB_PREPROCESSED` vs 16-ch), our reimplementation,
-  10 s windows, a different eval split, and **single-seed** variance — **not** a real improvement.
+- Our **best self-supervised JEPA (SIGReg+corruption): 0.775 / 0.856** (per-window) sits **≈ ContraWR
+  (0.7746 / 0.8456)**; **below** SPaRCNet (0.7896), ST-Transformer (0.7966 / 0.8707), **BIOT (0.7959 /
+  0.8815)**, and **well below LaBraM-Base (0.8140 / 0.9022)**. (Verified literature in `SOTA_TABLE.md`.)
+- Our **supervised EEGNet (seed-avg 0.779 per-window)** sits **just *below* the published EEGNet (0.804,
+  spectral-audit)** — consistent, no anomaly. (Our earlier "above published EEGNet" claim relied on a
+  hallucinated 0.764 and is retracted.)
 - **Conclusion:** EB-JEPA is a **solid self-supervised baseline, competitive with simple supervised
   models, but below the SOTA EEG transformers** at the fair per-sample level. The earlier
   "matches/beats BIOT/LaBraM" claim was an artifact of per-recording aggregation and is retracted.
