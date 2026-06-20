@@ -9,11 +9,11 @@
 
 set -e
 
-PYTHON=/lustre/work/vivatech-slightlyunawarefc/tvasnier/venvs/eb_jepa_x86_64/bin/python
+PYTHON=/lustre/work/vivatech-slightlyunawarefc/yhammache/venvs/eb_jepa_aarch64/bin/python
 REPO=/lustre/work/vivatech-slightlyunawarefc/tvasnier/eb_jepa
 SCRIPT=$REPO/examples/eeg/viz_latents.py
 
-# ── s'assurer que les librairies sont là ─────────────────────────────────────
+# ── s'assurer que les librairies sont là (aarch64) ───────────────────────────
 echo "=== vérification / install des dépendances ==="
 $PYTHON -m pip install --quiet --upgrade \
     scikit-learn \

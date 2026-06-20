@@ -134,10 +134,36 @@ NaiveJEPA splits a single EEG window in time at ratio 0.5:
   \item Target ($t = T/2 \to T$): EMA copy of encoder $\to$ mean pool (no gradient)
   \item Loss: $\mathrm{MSE}(\hat{z}_{\rm tgt},\ z_{\rm tgt})$
 \end{itemize}
-\textbf{No anti-collapse term is needed.}  Because context and target see
-disjoint time spans, collapsing to a constant would drive the MSE loss to
-the variance of the target distribution (not zero), so collapse is
-architecturally prevented.
+\textbf{Collapse is made very unlikely, but the reason is not the temporal
+split alone.}  The common claim is: ``if the encoder collapses to a constant
+$c$, the MSE loss becomes the variance of the target distribution (non-zero),
+so collapse is prevented.''  This is \emph{wrong}: both the online and EMA
+encoders share the same underlying function; if that function collapses to
+$c$, both outputs are $c$, the predictor can learn $\mathrm{MLP}(c)=c$, and
+$\mathrm{MSE}(c,c)=0$ --- collapse is a valid global minimum.
+
+What actually prevents collapse is a combination of three factors:
+\begin{enumerate}[noitemsep]
+  \item \textbf{BatchNorm (dominant).}  The Conv1D encoder has
+    \texttt{BatchNorm1d} layers.  If all outputs in a batch are identical,
+    the batch variance is zero and BatchNorm divides by $\approx\varepsilon$,
+    causing numerical explosion.  True constant collapse is practically
+    impossible with BatchNorm.
+  \item \textbf{EMA lag (structural asymmetry).}  The target encoder is a
+    slowly-moving copy of the online encoder (momentum $\approx 0.996$).
+    At every step, target $\neq$ online, so the predictor always has a
+    non-stationary, non-collapsed target to chase.  This is the BYOL
+    argument: asymmetry prevents the stable collapsed equilibrium.
+  \item \textbf{Temporal disjointness (helpful, not sufficient).}
+    At the start of training, first-half and second-half representations
+    differ in content, so the loss provides useful gradient.  But if both
+    encoders eventually converge to the same constant function, this
+    advantage disappears.
+\end{enumerate}
+
+The net result: \textbf{no explicit VICReg/SIGReg regularisation is needed
+in practice}, and NaiveJEPA trains stably.  But the architectural guarantee
+is provided by BatchNorm + EMA, not by the temporal split alone.
 
 \textbf{What it shows.}
 \begin{center}

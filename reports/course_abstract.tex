@@ -83,6 +83,22 @@ output dimensions to carry different information (covariance term).
 SIGReg does it by testing that the distribution of representations looks
 Gaussian (a non-constant distribution cannot be collapsed).
 
+\textbf{Can predictive architectures avoid collapse without regularisation?}
+There is a common claim that in I-JEPA-style models --- where the encoder
+predicts the representation of a \emph{different, disjoint} part of the
+input --- collapse is impossible: ``if the encoder outputs a constant, the
+MSE to the target cannot be zero.''  This is \emph{not quite right}.  If
+both the online and EMA encoders collapse to the same constant $c$, the
+predictor can simply learn to output $c$ too, and the loss is zero.
+
+What actually prevents collapse in practice is a combination of:
+(1) \textbf{BatchNorm} --- normalisation layers make a true constant output
+numerically explosive; (2) \textbf{EMA momentum} --- the target encoder lags
+behind the online encoder, creating a non-stationary signal that is hard to
+collapse onto; and (3) \textbf{input diversity} from the disjoint split,
+which gives useful gradient at the start of training.
+The temporal split \emph{helps}, but is not the full story.
+
 \section*{What does the score mean?}
 
 \textbf{BACC} (balanced accuracy) is the average of the true positive rate
