@@ -5,6 +5,31 @@ This is the document you want when comparing the report's claims to reality.
 
 ---
 
+## Bug 0 — Best-epoch selection peeked at the eval set (headline FT number 0.837 → 0.812)
+
+**Severity**: High — it was the exact difference between "SSL **beats** EEGNet" and "SSL **ties** EEGNet."
+
+**What was wrong**: the fine-tuned per-recording result was reported at its *best epoch*, chosen by
+the highest accuracy on the **evaluation** set. With no separate validation split, selecting the
+epoch on the eval set uses the test data for model selection — a leak. EEGNet, by contrast, was
+reported at its final epoch. The comparison was asymmetric and inflated JEPA.
+
+**Evidence (3 seeds, per-recording BACC)**:
+
+| seed | best-epoch (peeked) | final-epoch (fair) |
+|---|---|---|
+| 0 | 0.837 (ep 5) | 0.812 |
+| 1 | 0.848 (ep 4) | 0.807 |
+| 2 | 0.839 (ep 2) | 0.817 |
+| **mean** | 0.841 | **0.812 ± 0.004** (AUROC 0.908 ± 0.006) |
+
+**Fix**: report final-epoch, seed-averaged for *every* model. JEPA fine-tune = 0.812 ± 0.004 vs
+EEGNet = 0.812 ± 0.013 → a statistical tie. The 0.837 / 0.919 figures are retracted; `research_paper.tex`,
+`report.tex`, and the result tables now use **0.812 / 0.908**, and it is written up as Methodological
+Lesson 4 in the paper. (The internal process logs below retain the original 0.837 as a historical record.)
+
+---
+
 ## Bug 1 — VICReg coefficients (1,1,1) instead of (25,25,1)
 
 **Severity**: Critical — caused EEGPT encoder to train below random init

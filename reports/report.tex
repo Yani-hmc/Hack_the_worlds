@@ -178,7 +178,7 @@ Key findings:
     significantly worse. A frozen global-pool readout is poorly matched to a
     frame-prediction objective; needs per-frame probing or more tuning.
   \item \textbf{Multi-corpus pretraining} (4$\times$ data): frozen 0.812 per-recording,
-    fine-tuned 0.837 — identical to TUAB-only fine-tuned (0.837).
+    fine-tuned 0.812 — identical to TUAB-only fine-tuned (0.812).
     Binding constraint is encoder capacity, not data quantity.
 \end{itemize}
 
@@ -226,8 +226,9 @@ a genuine tension in EEG benchmarking:
     per-window to report higher $n$ and lower variance, making the benchmark
     look more powerful than the clinical task demands.
   \item \textbf{Our honest position}: per-window 0.775 (below BIOT/LaBraM); per-recording
-    0.836 with a simple frozen linear probe, $0.837$ with fine-tuning — competitive with
-    supervised EEGNet (per-recording 0.824).
+    0.819 with a frozen probe and 0.812 with fine-tuning (both 3-seed, final epoch) --- a
+    statistical tie with supervised EEGNet (per-recording 0.812). An earlier best-epoch
+    reading of 0.837 was test-set peeking and is retracted.
 \end{itemize}
 
 \section{Conclusion}

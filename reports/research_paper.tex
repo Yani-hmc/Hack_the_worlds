@@ -183,7 +183,7 @@ WIN & \cellcolor{ours}Conv1D + spectral 0.1 & -- & -- & This work & -- & 0.765 &
 REC-WIN & \cellcolor{ours}Conv1D + VICReg (frozen) & -- & -- & This work & -- & 0.796 & 0.888 & TUAB \\
 REC-WIN & \cellcolor{ours}Conv1D + VICReg + corrupt (frozen) & -- & -- & This work & -- & 0.825 & 0.904 & TUAB \\
 REC-WIN & \cellcolor{ours}Conv1D + spectral 0.1 (frozen) & -- & -- & This work & -- & 0.836 & 0.887 & TUAB \\
-REC-WIN & \cellcolor{ours}Conv1D + VICReg + corrupt (fine-tuned) & -- & -- & This work & -- & 0.837 & 0.919 & TUAB \\
+REC-WIN & \cellcolor{ours}Conv1D + VICReg + corrupt (fine-tuned) & -- & -- & This work & -- & 0.812 & 0.908 & TUAB \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -309,52 +309,56 @@ fine-tuned variants, and both scoring conventions.
   MLP probe trained on top.  ``Fine-tuned'' = entire network updated during probe
   training.  ``collapsed'' = BACC $\leq$ random init floor.  AUROC marked with
   $^{\star}$ is from REC-WIN; WIN AUROC not separately recorded.
-  VICReg$^{*}$= buggy inv\_coeff=1; VICReg = corrected inv\_coeff=25.}
+  VICReg$^{*}$= buggy inv\_coeff=1; VICReg = corrected inv\_coeff=25.
+  Scoring codes: W = per-window, R = per-recording (REC-WIN, $N{=}16$),
+  W,R = both.  Fine-tuned (FT) rows are 3-seed means at the \emph{final}
+  epoch (no best-epoch selection).}
 \label{tab:full_results}
 \small
 \setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{L{3.6cm}C{1.3cm}C{1.3cm}C{1.3cm}C{1.3cm}C{1.3cm}L{1.5cm}L{1.3cm}}
 \toprule
 \textbf{Model / Config} &
-\textbf{BACC\textsubscript{WIN}} &
-\textbf{AUROC\textsubscript{WIN}} &
-\textbf{BACC\textsubscript{REC}} &
-\textbf{AUROC\textsubscript{REC}} &
+\textbf{\shortstack{BACC\\WIN}} &
+\textbf{\shortstack{AUROC\\WIN}} &
+\textbf{\shortstack{BACC\\REC}} &
+\textbf{\shortstack{AUROC\\REC}} &
 \textbf{Scoring} &
 \textbf{Probe} &
 \textbf{Dataset} \\
 \midrule
 \multicolumn{8}{l}{\textit{Conv1D encoder (0.4M parameters)}} \\
-Conv + VICReg$^{*}$ (base)          & 0.756 & --           & 0.796 & 0.888 & WIN/REC-WIN & Frozen & TUAB \\
-Conv + VICReg$^{*}$ + corrupt       & 0.770 & 0.904$^{\star}$ & 0.825 & 0.904 & WIN/REC-WIN & Frozen & TUAB \\
-Conv + VICReg$^{*}$ + corrupt (s1)  & --    & --           & 0.816 & 0.891 & REC-WIN & Frozen & TUAB \\
-Conv + VICReg$^{*}$ + corrupt (s2)  & --    & --           & 0.818 & 0.906 & REC-WIN & Frozen & TUAB \\
-Conv + VICReg$^{*}$ + spectral 0.05 & --    & --           & 0.821 & 0.884 & REC-WIN & Frozen & TUAB \\
-Conv + VICReg$^{*}$ + spectral 0.1  & 0.765 & 0.887$^{\star}$ & 0.836 & 0.887 & WIN/REC-WIN & Frozen & TUAB \\
-Conv + VICReg$^{*}$ + spectral 0.3  & --    & --           & 0.789 & 0.877 & REC-WIN & Frozen & TUAB \\
-Conv + VICReg$^{*}$ + fftc 0.05     & --    & --           & 0.807 & 0.887 & REC-WIN & Frozen & TUAB \\
-Conv + SIGReg$^{*}$ + corrupt       & 0.775 & 0.904$^{\star}$ & 0.825 & 0.904 & WIN/REC-WIN & Frozen & TUAB \\
-Conv + VICReg$^{*}$ + corrupt (big) & --    & --           & 0.805 & 0.892 & REC-WIN & Frozen & TUAB \\
-Conv + VICReg$^{*}$ + corrupt (FT)  & --    & --           & 0.837 & 0.919 & REC-WIN & Fine-tuned & TUAB \\
-Conv + VICReg$^{*}$ + multicorpus   & --    & --           & 0.812 & --    & REC-WIN & Frozen & TUAB \\
-Conv + VICReg$^{*}$ + multicorpus (FT) & -- & --           & 0.837 & --    & REC-WIN & Fine-tuned & TUAB \\
+Conv + VICReg$^{*}$ (base)          & 0.756 & --           & 0.796 & 0.888 & W,R & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + corrupt       & 0.770 & 0.904$^{\star}$ & 0.825 & 0.904 & W,R & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + corrupt (s1)  & --    & --           & 0.816 & 0.891 & R & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + corrupt (s2)  & --    & --           & 0.818 & 0.906 & R & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + spectral 0.05 & --    & --           & 0.821 & 0.884 & R & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + spectral 0.1  & 0.765 & 0.887$^{\star}$ & 0.836 & 0.887 & W,R & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + spectral 0.3  & --    & --           & 0.789 & 0.877 & R & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + fftc 0.05     & --    & --           & 0.807 & 0.887 & R & Frozen & TUAB \\
+Conv + SIGReg$^{*}$ + corrupt       & 0.775 & 0.904$^{\star}$ & 0.825 & 0.904 & W,R & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + corrupt (big) & --    & --           & 0.805 & 0.892 & R & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + corrupt (FT)  & --    & --           & 0.812 & 0.908 & R & Fine-tuned & TUAB \\
+Conv + VICReg$^{*}$ + multicorpus   & --    & --           & 0.812 & --    & R & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + multicorpus (FT) & -- & --           & 0.812 & --    & R & Fine-tuned & TUAB \\
 \midrule
 \multicolumn{8}{l}{\textit{LaBraM-style patch Transformer (1.2M parameters)}} \\
-LaBraM-style + VICReg$^{*}$         & 0.775$^{\dagger}$ & -- & -- & -- & WIN & Frozen & TUAB \\
-LaBraM-style + SIGReg$^{*}$         & 0.725$^{\dagger}$ & -- & -- & -- & WIN & Frozen & TUAB \\
+LaBraM-style + VICReg$^{*}$         & 0.775$^{\dagger}$ & -- & -- & -- & W & Frozen & TUAB \\
+LaBraM-style + SIGReg$^{*}$         & 0.725$^{\dagger}$ & -- & -- & -- & W & Frozen & TUAB \\
 \midrule
 \multicolumn{8}{l}{\textit{BIOT-style FFT Transformer (1.2M parameters)}} \\
-BIOT-style + VICReg$^{*}$           & 0.775$^{\dagger}$ & -- & -- & -- & WIN & Frozen & TUAB \\
-BIOT-style + SIGReg$^{*}$           & 0.783$^{\dagger}$ & -- & -- & -- & WIN & Frozen & TUAB \\
+BIOT-style + VICReg$^{*}$           & 0.775$^{\dagger}$ & -- & -- & -- & W & Frozen & TUAB \\
+BIOT-style + SIGReg$^{*}$           & 0.783$^{\dagger}$ & -- & -- & -- & W & Frozen & TUAB \\
 \midrule
 \multicolumn{8}{l}{\textit{EEGPT-style channel-pool Transformer (0.8M parameters)}} \\
-EEGPT-style + VICReg$^{*}$          & collapsed & -- & -- & -- & WIN & Frozen & TUAB \\
-EEGPT-style + SIGReg$^{*}$          & collapsed & -- & -- & -- & WIN & Frozen & TUAB \\
+EEGPT-style + VICReg$^{*}$          & collapsed & -- & -- & -- & W & Frozen & TUAB \\
+EEGPT-style + SIGReg$^{*}$          & collapsed & -- & -- & -- & W & Frozen & TUAB \\
 EEGPT-style + VICReg (fixed) ep.11  & pending & -- & -- & -- & -- & -- & TUAB \\
 \bottomrule
 \multicolumn{8}{l}{$^{\dagger}$Accuracy (not BACC); early eval script.
   $^{*}$VICReg bug: inv\_coeff=1 (should be 25).} \\
-\end{tabular}
+\end{tabular}}
 \end{table}
 
 \paragraph{Key observations.}
@@ -683,6 +687,7 @@ comparability with the literature.
 \label{tab:best}
 \small
 \setlength{\tabcolsep}{5pt}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{llccccc}
 \toprule
 \textbf{Method} & \textbf{Encoder} & \textbf{Params} &
@@ -708,23 +713,28 @@ VICReg + corruption & LaBraM-style & 1.2M & -- & -- & -- & SSL Frozen \\
 VICReg + corruption & BIOT-style & 1.2M & -- & -- & -- & SSL Frozen \\
 \midrule
 \multicolumn{7}{l}{\textit{EB-JEPA (this work) --- fine-tuned}} \\
-VICReg + corruption $\to$ FT & Conv1D & 0.4M & -- & \textbf{0.837} & \textbf{0.919} & Fine-tuned \\
+VICReg + corruption $\to$ FT & Conv1D & 0.4M & -- & \textbf{0.812} & \textbf{0.908} & Fine-tuned \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{table}
 
 \paragraph{Summary.}
 \begin{itemize}[noitemsep]
   \item The 0.4M Conv1D encoder matches the 5.8M LaBraM-Base at per-window
         BACC when using SIGReg + corruption augmentation (both 0.775).
-  \item Per-recording BACC 0.836 (spectral, frozen) and 0.837 (corrupt, FT)
-        both exceed supervised EEGNet 0.824, demonstrating that SSL
-        pretraining without any labels can reach the supervised baseline
-        when patient-level aggregation is used.
+  \item Per-recording, the fine-tuned encoder reaches BACC
+        $0.812 \pm 0.004$ (3 seeds, \emph{final} epoch), statistically
+        matching supervised EEGNet ($0.812 \pm 0.013$); the frozen probe
+        reaches $0.819 \pm 0.004$.  SSL pre-training without labels thus
+        \emph{reaches} --- but does not exceed --- the supervised baseline
+        under patient-level aggregation.  (An earlier single-seed,
+        \emph{best-epoch} reading of 0.837 suggested SSL beat EEGNet; that
+        selected the best epoch on the evaluation set, which peeks at the
+        test data, and is retracted --- see Lesson~4.)
   \item The 3.9 pp gap to LaBraM at per-window remains unexplained; the three
         candidate explanations (tokeniser quality, model scale, pretraining
         duration) are confounded at this stage.
-  \item AUROC 0.919 (fine-tuned) confirms that the representations are
+  \item AUROC 0.908 (fine-tuned, 3-seed mean) confirms that the representations are
         high-quality even if the linear separability (frozen probe) is
         not yet optimal.
 \end{itemize}
@@ -749,8 +759,8 @@ A 0.4M Conv1D encoder pre-trained for 20 epochs on 2\,717 unlabelled recordings
 reaches 0.775 WIN BACC (frozen), matching the published ContraWR result and
 within 3.9 pp of LaBraM-Base.  Corruption augmentation (+time masking + spike
 injection) is the single most effective ingredient ($+0.014$ WIN, $+0.029$ REC).
-Fine-tuning the pre-trained encoder reaches 0.837 REC BACC, matching EEGNet
-with no labels used during pre-training.
+Fine-tuning the pre-trained encoder reaches 0.812 REC BACC (3 seeds, final
+epoch), matching EEGNet (0.812) with no labels used during pre-training.
 
 \paragraph{Diagnostic findings.}
 \begin{enumerate}[noitemsep]
@@ -828,7 +838,7 @@ Six scientific decisions remain unresolved as of this writing:
 
 \subsection{Methodological Lessons}
 
-This project illustrates three recurring failure modes in EEG deep learning:
+This project illustrates four recurring failure modes in EEG deep learning:
 \begin{enumerate}[noitemsep]
   \item \textbf{Comparison without protocol matching.}
     WIN vs. REC is the EEG-specific instance of a general problem: different
@@ -844,6 +854,16 @@ This project illustrates three recurring failure modes in EEG deep learning:
     catastrophic for another (channel-drop + channel-pool).
     The augmentation stack should be designed or ablated per encoder family,
     not applied uniformly.
+  \item \textbf{Best-epoch selection peeks at the test set.}
+    Reporting the epoch with the highest \emph{evaluation} accuracy uses the
+    test set for model selection --- a subtle leak.  Our fine-tuned probe
+    appeared to reach 0.837 REC BACC at its best epoch but only
+    $0.812 \pm 0.004$ at the final epoch (3 seeds); the 2.5\,pp gap is pure
+    peeking, and it was exactly the margin that made SSL look like it
+    \emph{beat} EEGNet rather than tying it.  Every model must share one fixed
+    stopping rule (we report final-epoch, seed-averaged); selecting per-model
+    best epochs against the same split you report on manufactures wins that
+    vanish under a held-out protocol.
 \end{enumerate}
 
 \bigskip
