@@ -64,6 +64,27 @@
 \end{columns}
 \end{frame}
 
+\begin{frame}{What the Data Looks Like}
+\begin{columns}[T]
+\column{0.62\textwidth}
+\IfFileExists{figures/tuab_normal_vs_abnormal.png}{%
+  \includegraphics[width=\linewidth]{figures/tuab_normal_vs_abnormal.png}
+}{%
+  \begin{center}\textcolor{muted}{\footnotesize [figure pending]}\end{center}
+}
+\column{0.35\textwidth}
+{\small
+\textbf{One 10\,s window per class}, 19 channels @ 200\,Hz, per-channel $z$-scored --- exactly what the encoder sees, no spectrogram, no hand-crafted features.
+
+\vspace{0.4em}
+\textbf{What jumps out:} the abnormal trace (right) shows visibly higher-amplitude, less rhythmic bursts in several channels around 4--6\,s, vs.\ the normal trace's (left) more uniform, lower-amplitude background rhythm.
+
+\vspace{0.4em}
+\textcolor{muted}{\footnotesize This is exactly the kind of structure the SSL encoder must learn to separate -- without ever seeing the normal/abnormal label.}
+}
+\end{columns}
+\end{frame}
+
 \begin{frame}{Plato's Cave: What SSL Actually Does}
 \begin{columns}[T]
 \column{0.55\textwidth}
@@ -396,6 +417,9 @@ A linear probe on frozen features beats \textbf{ST-Transformer} and \textbf{CNN-
 
 \vspace{0.5em}
 \textcolor{muted}{\footnotesize We trail BIOT/ContraWR/FFCL because they fine-tune or train from scratch on TUEV.}
+
+\vspace{0.5em}
+\textcolor{warn}{\footnotesize TUEV is severely imbalanced: BCKG is 64\% of events, SPSW only 0.77\%. A BCKG-only predictor scores 64\% accuracy while failing the task --- why we report BACC, not accuracy.}
 \end{columns}
 \end{frame}
 
