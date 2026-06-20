@@ -16,17 +16,14 @@
 \setbeamertemplate{footline}{%
   \hfill\insertframenumber/\inserttotalframenumber\hspace*{1em}\vspace*{0.5em}}
 
-% ─────────────────────────────────────────────────────────────────────────────
 \title{EB-JEPA for Clinical EEG}
-\subtitle{Self-Supervised Abnormality Detection: Honest Results}
-\author{tcourtois \and yhammache \and tvasnier}
+\subtitle{Self-Supervised Abnormality Detection}
+\author{Timothy Courtois \and Théo Basséras \and Yani Hammache \and Titouan Vasnier}
 \date{Hackathon, June 2026}
-% ─────────────────────────────────────────────────────────────────────────────
 
 \begin{document}
 \maketitle
 
-% ─── 1. MOTIVATION (30s) ────────────────────────────────────────────────────
 \begin{frame}{Why Self-Supervised EEG?}
 \begin{columns}[T]
 \column{0.55\textwidth}
@@ -67,7 +64,6 @@
 \end{columns}
 \end{frame}
 
-% ─── 2. CAVERN ALLEGORY (30s) ────────────────────────────────────────────────
 \begin{frame}{Plato's Cave: What SSL Actually Does}
 \begin{columns}[T]
 \column{0.55\textwidth}
@@ -110,7 +106,6 @@ Prisoners in Plato's cave see only \textbf{shadows on the wall}, not the real ob
 \end{columns}
 \end{frame}
 
-% ─── 3. APPROACH (45s) ───────────────────────────────────────────────────────
 \begin{frame}{EB-JEPA: Two-View Invariance + Corruption}
 \begin{columns}[T]
 \column{0.55\textwidth}
@@ -158,7 +153,6 @@ Prisoners in Plato's cave see only \textbf{shadows on the wall}, not the real ob
 \end{columns}
 \end{frame}
 
-% ─── 4. KEY FINDING 1 — CORRUPTION (45s) ────────────────────────────────────
 \begin{frame}{Finding 1: Corruption Augmentation as Dominant Lever}
 \begin{columns}[T]
 \column{0.55\textwidth}
@@ -198,7 +192,6 @@ $0.819 \pm 0.004$ (not a lucky seed)
 \end{columns}
 \end{frame}
 
-% ─── 5. KEY FINDING 2 — INV_COEFF (60s) ─────────────────────────────────────
 \begin{frame}{Finding 2 (Novel): EEG Prefers Weak VICReg Invariance}
 \begin{columns}[T]
 \column{0.55\textwidth}
@@ -241,7 +234,6 @@ Sweet spot at $\{1,5\}$; gap widens monotonically.
 \end{columns}
 \end{frame}
 
-% ─── 6. NAIVEJEPA (45s) ──────────────────────────────────────────────────────
 \begin{frame}{NaiveJEPA: Temporal-Split Prediction, No Anti-Collapse Needed}
 \begin{columns}[T]
 \column{0.55\textwidth}
@@ -294,7 +286,6 @@ VICReg + corruption & 0.819 ± .004 & 4 \\
 \end{columns}
 \end{frame}
 
-% ─── 7. ARCHITECTURE COMPARISON (30s) ────────────────────────────────────────
 \begin{frame}{Encoder Ranking: Simple Conv Wins}
 \begin{columns}[T]
 \column{0.50\textwidth}
@@ -325,8 +316,7 @@ Fix: remove channel-drop $\to$ TUEV 0.182 $\to$ 0.358.
 \end{columns}
 \end{frame}
 
-% ─── 8. FAIR COMPARISON TO LITERATURE (45s) ──────────────────────────────────
-\begin{frame}{Honest Position vs Literature}
+\begin{frame}{Position vs Literature}
 
 {\small
 \textbf{Evaluation trap:} literature (BIOT, LaBraM) reports \textbf{per-window} BACC.
@@ -366,7 +356,6 @@ EEGNet (supervised)                    & 0.796 & 0.882 \\
 \end{columns}
 \end{frame}
 
-% ─── 9. TUEV TRANSFER (45s) ──────────────────────────────────────────────────
 \begin{frame}{Cross-Task Transfer to TUEV (6-class Event Detection)}
 \begin{columns}[T]
 \column{0.55\textwidth}
@@ -403,7 +392,6 @@ A linear probe on frozen features beats \textbf{ST-Transformer} and \textbf{CNN-
 \end{columns}
 \end{frame}
 
-% ─── 10. LATENT SPACE — EB-JEPA (30s) ───────────────────────────────────────
 \begin{frame}{Latent Space: EB-JEPA Representations}
 \begin{columns}[T]
 \column{0.74\textwidth}
@@ -428,7 +416,6 @@ A linear probe on frozen features beats \textbf{ST-Transformer} and \textbf{CNN-
 \end{columns}
 \end{frame}
 
-% ─── 10b. LATENT SPACE — 3D UMAP (20s) ──────────────────────────────────────
 \begin{frame}{Latent Space: 3D UMAP (EB-JEPA, Window-Level)}
 \begin{columns}[T]
 \column{0.62\textwidth}
@@ -450,7 +437,6 @@ A linear probe on frozen features beats \textbf{ST-Transformer} and \textbf{CNN-
 \end{columns}
 \end{frame}
 
-% ─── 11. LATENT SPACE — BIOT (30s) ──────────────────────────────────────────
 \begin{frame}{Latent Space: BIOT (LDA, Same Protocol)}
 
 \begin{columns}[T]
@@ -477,7 +463,6 @@ EB-JEPA: BACC\textsubscript{REC} 0.819, 0.4M params.
 \end{columns}
 \end{frame}
 
-% ─── 12. SUMMARY (30s) ───────────────────────────────────────────────────────
 \begin{frame}{Summary}
 
 \begin{columns}[T]
@@ -508,7 +493,6 @@ $\lambda_{\rm inv}$ sweep $\{1,5,10,25\}$ confirms monotone ordering: EEG SSL pr
 \end{block}
 \end{frame}
 
-% ─── BACKUP ───────────────────────────────────────────────────────────────────
 \begin{frame}{Backup: Per-Recording Table (Clinical Metric)}
 {\small
 \begin{tabular}{lccc}

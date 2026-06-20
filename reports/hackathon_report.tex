@@ -41,7 +41,6 @@ accuracy with no TUEV labels, beating two supervised baselines.
 \tableofcontents
 \vspace{0.3cm}
 
-% =====================================================================
 \section{Introduction}
 \label{sec:intro}
 
@@ -79,7 +78,6 @@ or worse depending on the convention. We use two, and name a third, throughout:
 cross-model ranking (Section~\ref{sec:combined}) fixes one convention --- per-recording-via-window --- for
 all rows.
 
-% =====================================================================
 \section{Data}
 \label{sec:data}
 
@@ -117,7 +115,6 @@ would require each author's preprocessing script and training schedule (e.g.\ BI
 50 epochs with layer-decay 0.65). We trade strict reproducibility for a \emph{uniform comparison protocol}.
 All article + GitHub references are collected in \texttt{references.bib} and in the provenance tables below.
 
-% =====================================================================
 \section{State of the art on TUAB (re-run from source)}
 \label{sec:sota}
 
@@ -157,7 +154,6 @@ ContraWR, BIOT, ST-Transformer, EEGNet) cluster around 0.82--0.83. This bunching
 369\,M-parameter LaBraM-Huge tops out near 0.83 per-window in the literature --- already signals that
 \textbf{TUAB is close to saturation}, which we return to in Section~\ref{sec:conclusion}.
 
-% =====================================================================
 \section{EB-JEPA}
 \label{sec:ebjepa}
 
@@ -362,7 +358,7 @@ Rows 1--5 single-seed; row 1b is 3-seed mean$\pm$std.}
 (row 1b) revealed that \textbf{per-recording BAcc carries $\approx\pm0.02$ seed noise} --- one seed dipped to
 0.788 while the others sat at 0.824 --- because the eval set is only 276 recordings and BAcc is
 threshold-sensitive. In contrast \emph{per-window} BAcc ($\pm.001$) and AUROC ($\pm.002$) are essentially
-deterministic. The honest consequence is sobering: \textbf{the $<$3\,pp per-recording gaps that separate
+deterministic. The consequence is sobering: \textbf{the $<$3\,pp per-recording gaps that separate
 rows 2--4 (and most of our campaign) sit within seed noise}; only the $-10$\,pp architecture gap (row 5) is
 statistically unambiguous. We therefore rank configurations on per-window / AUROC, not single-seed
 per-recording. We observed no representation collapse on any reported run --- the VICReg variance/covariance
@@ -386,7 +382,6 @@ Transformer is \textbf{10\,pp worse} than the conv (row 5) --- decisive evidence
 architecture}. (iii) \emph{Data scaling:} 4$\times$ less pretraining data costs only 0.8\,pp (row 2) --- the
 encoder is not data-starved and saturates early.
 
-% =====================================================================
 \section{Combined results: baselines vs.\ EB-JEPA}
 \label{sec:combined}
 
@@ -422,9 +417,8 @@ foundation model, \emph{without using any label during representation learning}.
 
 \noindent The headline of this report: a \textbf{0.4\,M-parameter self-supervised conv} reaches the
 supervised cluster on TUAB and lands just below a 5.8\,M foundation model, with no labels in pretraining ---
-a competitive, honest, and cheap result, whose main limit is the near-saturation of TUAB itself.
+a competitive and cheap result, whose main limit is the near-saturation of TUAB itself.
 
-% =====================================================================
 \section{The harder benchmark: TUEV}
 \label{sec:tuev}
 
@@ -510,14 +504,13 @@ organisers' bandpass+notch, majority-second labelling) differs from BIOT's \text
 (iii) the LaBraM rows are cited, not re-run. The transfer number should be read as ``a frozen TUAB encoder
 already carries useful event structure,'' not as a TUEV leaderboard entry.
 
-% =====================================================================
 \section{Conclusion, limitations and future work}
 \label{sec:conclusion}
 
 \paragraph{Conclusion.} A small, cheap, self-supervised energy-based JEPA learns a clinically useful EEG
 representation: frozen, with no labels in pretraining, it reaches the supervised cluster on TUAB (0.836
 per-recording BAcc, ties EEGNet, $\sim$1\,pp below LaBraM) and transfers to TUEV above several trained
-baselines. The honest, reproducible findings are (a) EEG SSL prefers weak view-invariance, (b) the
+baselines. The reproducible findings are (a) EEG SSL prefers weak view-invariance, (b) the
 corruption mask is the dominant augmentation, (c) per-recording BAcc on 276 recordings is seed-noisy and must
 be read with $\pm0.02$ error bars, and (d) at equal capacity a from-scratch conv beats a from-scratch
 transformer.

@@ -1,7 +1,3 @@
-% Final presentation — EB-JEPA for Clinical EEG
-% Style mirrors hackathon_guide/two_rooms_example_slides.pdf (organisers' template).
-% Content mirrors reports/hackathon_report.{tex,pdf} (our research report).
-% Figures reused from reports/figures/ (previously assembled in reports/beamer.tex).
 \documentclass[aspectratio=169,11pt]{beamer}
 
 \usepackage[T1]{fontenc}
@@ -13,7 +9,6 @@
 \usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds}
 \tcbuselibrary{skins}
 
-% ─── colours that match the organisers' template ────────────────────────────
 \definecolor{tplbg}{HTML}{1F4E91}      % title-slide deep blue
 \definecolor{tplbg2}{HTML}{306FB0}     % title-slide gradient end
 \definecolor{tpltitle}{HTML}{1B5DAA}   % frame title blue
@@ -23,7 +18,6 @@
 \definecolor{tplgreen}{HTML}{2A7D4F}   % positive number
 \definecolor{tplgrey}{HTML}{A0A0A0}
 
-% ─── plain look (no metropolis bars) ────────────────────────────────────────
 \setbeamertemplate{navigation symbols}{}
 \setbeamercolor{background canvas}{bg=white}
 \setbeamerfont{frametitle}{size=\LARGE,series=\bfseries}
@@ -37,8 +31,6 @@
   \hfill\textcolor{tplgrey}{\tiny\insertframenumber/\inserttotalframenumber}\hspace*{1em}\vspace*{0.4em}}
 \setbeamerfont{itemize/enumerate body}{size=\small}
 
-% ─── callout boxes that mirror the template's "◇ COULD HELP" / "★ EXPLORATION"
-%    we re-purpose them as ◇ CAVEAT (red) and ★ FINDING (gold)
 \newtcolorbox{caveatbox}{enhanced,colback=tplred!6,colframe=tplred,boxrule=0.6pt,
   arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,
   borderline west={2pt}{0pt}{tplred}}
@@ -63,9 +55,6 @@
 
 \begin{document}
 
-% ============================================================================
-% TITLE SLIDE — full-bleed deep-blue gradient, mirroring the template
-% ============================================================================
 {\setbeamertemplate{footline}{}
 \begin{frame}[plain]
 \begin{tikzpicture}[remember picture,overlay]
@@ -81,22 +70,19 @@
   \,\,\textperiodcentered\,\, June 2026}\\[1.3em]
 {\color{white!75}\sffamily\small Colour code in this deck\,---\,}%
 \tikz[baseline=(b.base)]{\node[fill=tplred,text=white,rounded corners=2pt,
-  inner xsep=5pt,inner ysep=2pt,font=\small\sffamily\bfseries] (b) {$\Diamond$ caveat = an honest limit};}\,\,%
+  inner xsep=5pt,inner ysep=2pt,font=\small\sffamily\bfseries] (b) {$\Diamond$ caveat = a limit};}\,\,%
 \tikz[baseline=(b.base)]{\node[fill=tplgold,text=white,rounded corners=2pt,
   inner xsep=5pt,inner ysep=2pt,font=\small\sffamily\bfseries] (b) {$\bigstar$ finding = a result we believe};}
 \end{center}
 \end{frame}
 }
 
-% ============================================================================
-% BEFORE WE START
-% ============================================================================
 \sectionheader{BEFORE WE START}
 \begin{frame}{How to read this deck}
 \begin{columns}[T,onlytextwidth]
 \column{0.46\textwidth}
 \textbf{What it is.}\\
-A complete, honest walk-through of our EB-JEPA submission on \textbf{TUAB} (binary
+A complete walk-through of our EB-JEPA submission on \textbf{TUAB} (binary
 abnormal-EEG) and a transfer probe on \textbf{TUEV} (6-class events). Every number
 is from our own runs --- baselines re-run from official GitHub code, EB-JEPA
 trained from scratch, frozen-probed.
@@ -115,16 +101,13 @@ per-recording on TUAB --- ties supervised EEGNet, $\sim$1\,pp below a 5.8\,M fou
 \textbf{without seeing a single label during pretraining}.
 \end{findingbox}
 \vspace{0.5em}
-\begin{caveatbox}\caveattag One honest limit\\[0.2em]
+\begin{caveatbox}\caveattag One limit\\[0.2em]
 \small TUAB is close to saturation (LaBraM-Huge at 369\,M params tops out near 0.83
 per-window). The interesting science lives on TUEV \& multi-task transfer.
 \end{caveatbox}
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% OVERVIEW · THE TASK
-% ============================================================================
 \sectionheader{OVERVIEW \,\textperiodcentered\, THE TASK}
 \begin{frame}{Clinical EEG abnormality detection on TUAB}
 \begin{columns}[T,onlytextwidth]
@@ -166,9 +149,6 @@ Headline metric             & per-recording \textbf{BAcc} / \textbf{AUROC} \\
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% OVERVIEW · OUR APPROACH
-% ============================================================================
 \sectionheader{OVERVIEW \,\textperiodcentered\, OUR APPROACH}
 \begin{frame}{EB-JEPA --- two views, one shared encoder, an anti-collapse energy}
 \begin{columns}[T,onlytextwidth]
@@ -210,9 +190,53 @@ maps both, and the loss drives the latents to agree --- the encoder learns
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% DATA · 1/2
-% ============================================================================
+\sectionheader{OVERVIEW \,\textperiodcentered\, THE INTUITION}
+\begin{frame}{Plato's Cave --- what self-supervision actually does}
+\begin{columns}[T,onlytextwidth]
+\column{0.55\textwidth}
+Prisoners in Plato's cave see only \textbf{shadows on the wall}, not the real
+objects. They learn to \emph{predict} patterns in the shadows without ever
+seeing the cause.
+
+\vspace{0.3em}
+\textbf{In our setting:}
+\begin{itemize}\setlength\itemsep{0pt}
+  \item Cave wall = raw EEG voltages
+  \item Hidden reality = underlying brain pathology
+  \item SSL encoder = prisoner learning that \emph{two corrupted views of the
+        same shadow are the same object}
+  \item Linear probe = asking the prisoner to name what they see
+\end{itemize}
+
+\vspace{0.3em}
+\textcolor{tplsec}{\footnotesize The encoder never sees a neurologist's label.
+It learns structure from the signal alone --- everything downstream
+(Architecture, Training, Evaluation) is about \emph{how well} it does that.}
+
+\column{0.42\textwidth}
+\centering
+\begin{tikzpicture}[font=\footnotesize, node distance=0.5cm and 0.5cm]
+  \node[draw=tpltitle!50, fill=tpltitle!8, rounded corners, minimum width=3.8cm, align=center]
+    (brain) {Brain pathology\\ \footnotesize (hidden reality)};
+  \node[draw=tplsec!50, fill=tplsec!8, rounded corners, below=0.7cm of brain, minimum width=3.8cm, align=center]
+    (eeg) {Raw EEG\\ \footnotesize (shadow on the wall)};
+  \node[draw=tpltitle!60, fill=tpltitle!12, rounded corners, below left=0.5cm and -0.2cm of eeg, minimum width=1.6cm, align=center]
+    (v1) {View 1\\ \footnotesize (masked)};
+  \node[draw=tpltitle!60, fill=tpltitle!12, rounded corners, below right=0.5cm and -0.2cm of eeg, minimum width=1.6cm, align=center]
+    (v2) {View 2\\ \footnotesize (noisy)};
+  \node[draw=tplgreen!60, fill=tplgreen!10, rounded corners, below=0.5cm of v1, minimum width=1.6cm, align=center]
+    (z1) {$z_1$};
+  \node[draw=tplgreen!60, fill=tplgreen!10, rounded corners, below=0.5cm of v2, minimum width=1.6cm, align=center]
+    (z2) {$z_2$};
+  \draw[-Latex,dashed,tplsec] (brain) -- (eeg);
+  \draw[-Latex] (eeg) -- (v1); \draw[-Latex] (eeg) -- (v2);
+  \draw[-Latex] (v1) -- (z1); \draw[-Latex] (v2) -- (z2);
+  \draw[Latex-Latex, tplred, thick] (z1.east) -- (z2.west)
+    node[midway,above,font=\tiny\bfseries,text=tplred]{push together};
+\end{tikzpicture}
+\end{columns}
+\end{frame}
+
 \sectionheader{DATA \,\textperiodcentered\, 1/2}
 \begin{frame}{TUAB --- dataset selection \& preprocessing}
 \begin{columns}[T,onlytextwidth]
@@ -252,9 +276,6 @@ manufactures false wins}\,---\,we always report both.
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% DATA · 2/2
-% ============================================================================
 \sectionheader{DATA \,\textperiodcentered\, 2/2}
 \begin{frame}{The two views \,---\, corruption is the lever}
 \begin{columns}[T,onlytextwidth]
@@ -299,9 +320,6 @@ time-mask\,---\,this is row b in the results table.}
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% ARCHITECTURE & LOSS · 1/3
-% ============================================================================
 \sectionheader{ARCHITECTURE \& LOSS \,\textperiodcentered\, 1/3}
 \begin{frame}{Encoders we tried}
 \begin{columns}[T,onlytextwidth]
@@ -333,9 +351,6 @@ removing channel-drop alone moves it from 0.182 to 0.358 on TUEV.}}
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% ARCHITECTURE & LOSS · 2/3
-% ============================================================================
 \sectionheader{ARCHITECTURE \& LOSS \,\textperiodcentered\, 2/3}
 \begin{frame}{The energy --- invariance + anti-collapse ($+$ spectral)}
 \begin{columns}[T,onlytextwidth]
@@ -374,9 +389,6 @@ results table). Not a lift, not a regression.
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% ARCHITECTURE & LOSS · 3/3
-% ============================================================================
 \sectionheader{ARCHITECTURE \& LOSS \,\textperiodcentered\, 3/3}
 \begin{frame}{Training dynamics}
 \begin{columns}[T,onlytextwidth]
@@ -403,9 +415,6 @@ reported run.
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% TRAINING SETUP & ITERATION
-% ============================================================================
 \sectionheader{TRAINING SETUP \& ITERATION}
 \begin{frame}{Configuration \& fast iteration}
 \begin{columns}[T,onlytextwidth]
@@ -451,9 +460,6 @@ capacity $\to$ augmentation $\to$ schedule $\to$ loss coefficients $\to$ data.
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% INFERENCE
-% ============================================================================
 \sectionheader{INFERENCE}
 \begin{frame}{The classification head --- frozen probe is the headline}
 \begin{columns}[T,onlytextwidth]
@@ -488,9 +494,6 @@ $\to$ \emph{milliseconds per recording}.
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% EVALUATION · 1/3 — EB-JEPA reference table on TUAB
-% ============================================================================
 \sectionheader{EVALUATION \,\textperiodcentered\, 1/3 \,\,\,\,EB-JEPA on TUAB}
 \begin{frame}{Reference table --- EB-JEPA on TUAB (frozen unless noted)}
 \centering\small
@@ -524,9 +527,6 @@ strong; end-to-end training adds nothing at 0.4\,M.
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% EVALUATION · 2/3 — Robustness / HP / ablation
-% ============================================================================
 \sectionheader{EVALUATION \,\textperiodcentered\, 2/3 \,\,\,\,Robustness \& hyper-parameters}
 \begin{frame}{What moves the needle --- and what doesn't}
 \begin{columns}[T,onlytextwidth]
@@ -568,11 +568,8 @@ AUROC}, not single-seed per-rec.
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% EVALUATION · 3/3 — combined vs literature
-% ============================================================================
 \sectionheader{EVALUATION \,\textperiodcentered\, 3/3 \,\,\,\,Combined --- baselines vs.\ EB-JEPA}
-\begin{frame}{Honest position vs.\ literature (per-recording-via-window)}
+\begin{frame}{Position vs.\ literature (per-recording-via-window)}
 \begin{columns}[T,onlytextwidth]
 \column{0.55\textwidth}
 \centering\small
@@ -604,9 +601,6 @@ LaBraM (a 5.8\,M foundation model with external pretraining) ---
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% TUEV TRANSFER
-% ============================================================================
 \sectionheader{TUEV \,\textperiodcentered\, FROZEN CROSS-TASK TRANSFER}
 \begin{frame}{TUEV (6-class) --- the same encoder, never trained on TUEV}
 \begin{columns}[T,onlytextwidth]
@@ -653,9 +647,6 @@ transfers'', not ``new TUEV SOTA''.
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% LATENT SPACE
-% ============================================================================
 \sectionheader{LATENT SPACE \,\textperiodcentered\, EB-JEPA vs.\ BIOT}
 \begin{frame}{Where the signal lives --- LDA on frozen features (honest)}
 \begin{columns}[T,onlytextwidth]
@@ -689,9 +680,32 @@ equally, so 2-D projections lose the discriminative direction. LDA, which
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% CONCLUSION
-% ============================================================================
+\sectionheader{LATENT SPACE \,\textperiodcentered\, 3D UMAP}
+\begin{frame}{Latent space in 3D --- recovering structure 2D collapses}
+\begin{columns}[T,onlytextwidth]
+\column{0.62\textwidth}
+\centering
+\includegraphics[width=\linewidth]{latent_umap3d_window_seed0_a0.png}
+
+\column{0.34\textwidth}
+{\small\textbf{Setup.} Same encoder, window-level latents (seed 0), 3D UMAP
+instead of 2D. 2{,}400 normal / 2{,}016 abnormal windows.}
+
+\vspace{0.4em}
+\begin{findingbox}\findingtag A third dimension recovers structure\\[0.2em]
+\small The 2-D UMAP panel (Latent Space slide, previous) looks mixed. In 3D the
+same embedding shows a two-lobe split that the 2-D projection collapses.
+\end{findingbox}
+
+\vspace{0.4em}
+\begin{caveatbox}\caveattag Qualitative, not the evidence\\[0.2em]
+\small Still an unsupervised projection (no labels used to fit UMAP) ---
+supporting intuition for Finding 1, not the BAcc evidence itself (that's the
+LDA panel, previous slide).
+\end{caveatbox}
+\end{columns}
+\end{frame}
+
 \sectionheader{CONCLUSION}
 \begin{frame}{What we learned --- and what's next}
 \begin{columns}[T,onlytextwidth]
@@ -731,9 +745,6 @@ TUEV / TUSZ} where there is real headroom and SSL value shows.
 \end{columns}
 \end{frame}
 
-% ============================================================================
-% THANK YOU
-% ============================================================================
 {\setbeamertemplate{footline}{}
 \begin{frame}[plain]
 \begin{tikzpicture}[remember picture,overlay]
@@ -742,7 +753,7 @@ TUEV / TUSZ} where there is real headroom and SSL value shows.
 \vspace{2.4cm}
 \begin{center}
 {\color{white}\sffamily\fontsize{36}{40}\selectfont\bfseries Thank you}\\[0.7em]
-{\color{white!85}\sffamily\large \emph{EB-JEPA for Clinical EEG \,---\, an honest first run}}\\[1.4em]
+{\color{white!85}\sffamily\large \emph{EB-JEPA for Clinical EEG \,---\, a first run}}\\[1.4em]
 {\color{white!70}\sffamily Team \textbf{vivatech-slightlyunawarefc} \,---\, questions welcome}
 \end{center}
 \end{frame}
