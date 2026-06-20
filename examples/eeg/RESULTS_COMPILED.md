@@ -1,9 +1,16 @@
 # TUAB abnormal-EEG detection — compiled results (sourced) & what we re-ran
 
-> ✅ **Literature numbers confirmed** against **LaBraM (ICLR 2024) Tables 1 & 2** — see
-> `LITERATURE_VS_OURS.md` for the authoritative version. Key fix: **BIOT = 0.7959 BAcc / 0.8815
-> AUROC** on TUAB (an earlier "0.869" here was an over-correction from BIOT's own paper; the
-> standard comparison table uses 0.8815). Where this file still shows 0.869, prefer 0.8815.
+> ⚠️ **For the authoritative literature SOTA table, see [`SOTA_TABLE.md`](SOTA_TABLE.md).**
+> Every cell there was checked against the actual PDF in the repo. **Two cells in the literature
+> table below are HALLUCINATIONS** (offline-agent errors, corrected in `SOTA_TABLE.md`):
+> - **EEGNet 0.764 BAcc / 0.841 AUROC** "from EEG-Bench" → EEG-Bench does NOT evaluate EEGNet.
+>   Correct: spectral-audit Raw BA `0.804`, or "no primary-paper number".
+> - **ShallowConvNet ~0.752 BAcc** "from spectral-audit" → spectral-audit actually reports `0.796`.
+>
+> A third earlier fix is preserved: **BIOT = 0.7959 BAcc / 0.8815 AUROC** (LaBraM Tbl 1 / BIOT
+> Tbl 4 row 11), not the earlier "0.869" over-correction. Where this file still shows 0.869,
+> prefer 0.8815. The "ours" sections (B1, B2) of this file are still accurate; only the
+> literature column (A) had errors.
 
 **Task:** binary normal-vs-abnormal EEG detection on **TUAB** (TUH Abnormal EEG Corpus) — the
 *golden benchmark* every method below reports on. Our "Hack the World" data **is** TUAB

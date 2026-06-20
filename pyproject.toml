@@ -40,6 +40,7 @@ dependencies = [
     "pyyaml",
     "ruamel.yaml",
     "pyedflib>=0.1.42",
+    "braindecode>=0.8.1",
 ]
 requires-python = "==3.12.*"
 
