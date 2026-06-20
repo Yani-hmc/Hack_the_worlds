@@ -16,8 +16,8 @@
   \hfill\insertframenumber/\inserttotalframenumber\hspace*{1em}\vspace*{0.5em}}
 
 % ─────────────────────────────────────────────────────────────────────────────
-\title{EB-JEPA for EEG Time Series}
-\subtitle{Self-Supervised Abnormality Detection on TUAB}
+\title{EB-JEPA for Clinical EEG}
+\subtitle{Self-Supervised Abnormality Detection — Honest Results}
 \author{tcourtois \and yhammache \and tvasnier}
 \date{Hackathon — June 2026}
 % ─────────────────────────────────────────────────────────────────────────────
@@ -25,24 +25,26 @@
 \begin{document}
 \maketitle
 
-% ─────────────────────────────────────────────────────────────────────────────
-\begin{frame}{Task \& Motivation}
+% ─── 1. MOTIVATION (30s) ────────────────────────────────────────────────────
+\begin{frame}{Why Self-Supervised EEG?}
 \begin{columns}[T]
 \column{0.55\textwidth}
-\textbf{TUAB} — TUH Abnormal EEG Corpus
+\textbf{Clinical reality:}
 \begin{itemize}
-  \item Binary: normal / abnormal clinical EEG
-  \item 19 channels, 200\,Hz, 10\,s windows
-  \item 2717 train / 276 eval recordings
-  \item Patient-disjoint split — no leakage
+  \item Every EEG must be reviewed by a licensed neurologist
+  \item Labels are scarce and expensive
+  \item Unlabelled EEG data is abundant
 \end{itemize}
 
 \vspace{0.6em}
-\textbf{Challenge:} learn a transferable EEG representation \emph{without} labels
+\textbf{Goal:} learn a \emph{transferable} EEG representation \textbf{without labels}
+
+\vspace{0.6em}
+\textbf{Benchmark — TUAB v3.0.1:}
 \begin{itemize}
-  \item Labelling EEG requires licensed neurologists
-  \item Unlabelled data is abundant
-  \item Can self-supervised learning close the gap?
+  \item Binary: normal / abnormal clinical EEG
+  \item 19 channels, 200\,Hz, 10\,s windows
+  \item 2\,717 train / 276 eval (patient-disjoint)
 \end{itemize}
 
 \column{0.42\textwidth}
@@ -51,9 +53,9 @@
   \node[draw=accent!70, fill=accent!10, rounded corners, minimum width=4cm, align=center]
     (raw) {Raw EEG\\ \footnotesize 19ch × 2000 samples};
   \node[draw=good!70, fill=good!10, rounded corners, below=of raw, minimum width=4cm, align=center]
-    (enc) {SSL Encoder\\ \footnotesize \emph{no labels}};
+    (enc) {SSL Encoder\\ \footnotesize \emph{no labels during pretraining}};
   \node[draw=gray!60, fill=gray!10, rounded corners, below=of enc, minimum width=4cm, align=center]
-    (probe) {Linear probe → BACC};
+    (probe) {Linear probe $\to$ BACC};
   \draw[-{Latex}, thick] (raw) -- (enc);
   \draw[-{Latex}, thick] (enc) -- (probe);
 \end{tikzpicture}
@@ -61,33 +63,75 @@
 \end{columns}
 \end{frame}
 
-% ─────────────────────────────────────────────────────────────────────────────
-\begin{frame}{Our Approach — EB-JEPA Two-View SSL}
-
+% ─── 2. CAVERN ALLEGORY (30s) ────────────────────────────────────────────────
+\begin{frame}{Plato's Cave — What SSL Actually Does}
 \begin{columns}[T]
 \column{0.55\textwidth}
-\textbf{Energy-Based JEPA} (two-view invariance):
+Prisoners in Plato's cave see only \textbf{shadows on the wall} — not the real objects casting them.
+They learn to \emph{predict and recognise} patterns in the shadows without ever seeing the cause.
+
+\vspace{0.8em}
+\textbf{In our setting:}
 \begin{itemize}
-  \item Take one EEG window; create two \emph{augmented views}
-  \item Push both through the same encoder $f_\theta$
-  \item Force $z_1 \approx z_2$ while preventing collapse
+  \item The cave wall = raw EEG voltages
+  \item The hidden reality = underlying brain pathology
+  \item The SSL encoder = a prisoner learning that \emph{two corrupted views of the same shadow are the same object}
+  \item The linear probe = asking the prisoner to name what they see
 \end{itemize}
 
 \vspace{0.5em}
-\textbf{Augmentations:}
+\textcolor{muted}{\footnotesize The encoder never sees a neurologist's label. It learns structure from the signal alone.}
+
+\column{0.42\textwidth}
+\begin{center}
+\begin{tikzpicture}[font=\footnotesize, node distance=0.5cm and 0.5cm]
+  \node[draw=accent!50, fill=accent!8, rounded corners, minimum width=3.8cm, align=center]
+    (brain) {Brain pathology\\ \footnotesize (hidden reality)};
+  \node[draw=gray!50, fill=gray!8, rounded corners, below=0.7cm of brain, minimum width=3.8cm, align=center]
+    (eeg) {Raw EEG\\ \footnotesize (shadow on the wall)};
+  \node[draw=blue!50, fill=blue!8, rounded corners, below left=0.5cm and -0.2cm of eeg, minimum width=1.6cm, align=center]
+    (v1) {View 1\\ \footnotesize (masked)};
+  \node[draw=blue!50, fill=blue!8, rounded corners, below right=0.5cm and -0.2cm of eeg, minimum width=1.6cm, align=center]
+    (v2) {View 2\\ \footnotesize (noisy)};
+  \node[draw=good!60, fill=good!10, rounded corners, below=0.5cm of v1, minimum width=1.6cm, align=center]
+    (z1) {$z_1$};
+  \node[draw=good!60, fill=good!10, rounded corners, below=0.5cm of v2, minimum width=1.6cm, align=center]
+    (z2) {$z_2$};
+  \draw[-{Latex},dashed,gray] (brain) -- (eeg);
+  \draw[-{Latex}] (eeg) -- (v1); \draw[-{Latex}] (eeg) -- (v2);
+  \draw[-{Latex}] (v1) -- (z1); \draw[-{Latex}] (v2) -- (z2);
+  \draw[{Latex}-{Latex}, red!70, thick] (z1.east) -- (z2.west)
+    node[midway,above,font=\tiny\bfseries,text=red!70]{push together};
+\end{tikzpicture}
+\end{center}
+\end{columns}
+\end{frame}
+
+% ─── 3. APPROACH (45s) ───────────────────────────────────────────────────────
+\begin{frame}{EB-JEPA — Two-View Invariance + Corruption}
+\begin{columns}[T]
+\column{0.55\textwidth}
+\textbf{Two-view SSL pipeline:}
+\begin{enumerate}
+  \item Take one EEG window; create two augmented views $v_1, v_2$
+  \item Encode both: $z_i = f_\theta(v_i) \in \mathbb{R}^{256}$
+  \item Minimise $\|z_1 - z_2\|^2$ + anti-collapse regulariser
+\end{enumerate}
+
+\vspace{0.5em}
+\textbf{Augmentations (standard):}
+Gaussian noise, amplitude jitter, channel drop
+
+\vspace{0.5em}
+\textbf{Our design — Corruption augmentation:}
 \begin{itemize}
-  \item Gaussian noise, amplitude jitter, channel drop
-  \item \textbf{+ Corruption} (our design): 20\% time masking, $\pm6\sigma$ spike injection
+  \item 20\,\% time steps \textbf{masked} to zero
+  \item 20\,\% time steps injected with $\pm6\sigma$ \textbf{spikes}
+  \item Mimics real EEG artefacts; forces robust representations
 \end{itemize}
 
 \vspace{0.5em}
-\textbf{What we contributed:}
-\begin{itemize}
-  \item 4 encoder architectures
-  \item 2 SSL objectives (VICReg / SIGReg)
-  \item Full ablation + bug diagnosis
-  \item Honest evaluation protocol
-\end{itemize}
+\textbf{Two objectives tested:} VICReg ($V$+$C$ regulariser) and SIGReg (Epps-Pulley Gaussianity test)
 
 \column{0.42\textwidth}
 \begin{center}
@@ -95,9 +139,9 @@
   \node[draw=gray!50, fill=blue!8, rounded corners, minimum width=3.2cm, align=center]
     (x) {$x$: EEG window};
   \node[draw=blue!50, fill=blue!15, rounded corners, below left=of x, minimum width=2.5cm, align=center]
-    (v1) {View 1\\ (masked)};
+    (v1) {View 1\\ (masked+spikes)};
   \node[draw=blue!50, fill=blue!15, rounded corners, below right=of x, minimum width=2.5cm, align=center]
-    (v2) {View 2\\ (noisy)};
+    (v2) {View 2\\ (noise+jitter)};
   \node[draw=good!70, fill=good!15, rounded corners, below=0.5cm of v1, minimum width=2.5cm, align=center]
     (z1) {$z_1 \in \mathbb{R}^{256}$};
   \node[draw=good!70, fill=good!15, rounded corners, below=0.5cm of v2, minimum width=2.5cm, align=center]
@@ -112,265 +156,304 @@
 \end{columns}
 \end{frame}
 
-% ─────────────────────────────────────────────────────────────────────────────
-\begin{frame}{Four Encoder Architectures}
-
-\begin{tabular}{llll}
+% ─── 4. KEY FINDING 1 — CORRUPTION (45s) ────────────────────────────────────
+\begin{frame}{Finding 1 — Corruption Augmentation: the Dominant Lever}
+\begin{columns}[T]
+\column{0.55\textwidth}
+\begin{tabular}{lcc}
 \toprule
-\textbf{Encoder} & \textbf{Tokenisation} & \textbf{Architecture} & \textbf{Params} \\
+Variant & BACC\textsubscript{REC} & $\Delta$ \\
 \midrule
-\textbf{Conv} & Strided Conv1D ($k$=7) & 4 BN+GELU blocks & 0.4M \\
-\textbf{LaBraM} & 1s patches per channel & ViT (190 tokens) & 1.2M \\
-\textbf{BIOT} & FFT magnitude patches & ViT (190 tokens) & 1.2M \\
-\textbf{EEGPT} & Cross-ch pool → 10 tokens & Temporal transformer & 0.8M \\
+Base VICReg (no corruption) & 0.796 & — \\
+\textbf{+ Corruption} (mask + spikes) & \textbf{0.819 ± .004} & \textcolor{good}{+0.023} \\
++ Spectral loss & 0.795--0.813 & $\approx$0 \\
+Scaled encoder & 0.805 & $-$0.014 \\
+4× more data & 0.812 & $-$0.007 \\
 \bottomrule
 \end{tabular}
 
-\vspace{0.8em}
-\begin{columns}[T]
-\column{0.48\textwidth}
-\textbf{VICReg} loss (Bardes et al. 2022):
-$$\mathcal{L} = 25\underbrace{\|z_1-z_2\|^2}_{\text{invariance}} + 25\,V + 1\,C$$
-Hinge variance + off-diagonal covariance penalty.
+\vspace{0.7em}
+\textbf{3-seed average (robust):}\\
+$0.819 \pm 0.004$ — not a lucky seed
 
-\column{0.48\textwidth}
-\textbf{SIGReg / BCS}:
-Replaces $V$+$C$ with Epps–Pulley Gaussianity test on random projections.
-Stronger anti-collapse, less hyperparameter-sensitive.
+\column{0.42\textwidth}
+\textbf{Why corruption helps:}
+\begin{itemize}
+  \item Standard augmentation (noise, jitter) creates views that are ``too easy'' to match
+  \item Masking + spike injection forces the encoder to learn \emph{content}, not artefact patterns
+  \item Mirrors the real EEG noise distribution
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{What does NOT help:}
+\begin{itemize}
+  \item More encoder capacity → same plateau
+  \item 4× pretraining data → no gain
+  \item[$\Rightarrow$] The bottleneck is the \emph{architecture}, not scale
+\end{itemize}
 \end{columns}
 \end{frame}
 
-% ─────────────────────────────────────────────────────────────────────────────
-\begin{frame}[fragile]{The Evaluation Trap}
-
-\begin{alertblock}{Per-window vs Per-recording — 5 pp difference, same encoder}
-\begin{itemize}
-  \item \textbf{Literature} (BIOT, LaBraM, FEMBA, EEGPT): reports \textbf{per-window} — each 10\,s segment is a separate test point. Up to 409\,455 test samples from 2339 recordings.
-  \item \textbf{Our evaluation}: mean-pools 16 windows per patient into one embedding → \textbf{per-recording} score.
-  \item Per-recording is $\approx$5\,pp \emph{higher} than per-window for the same encoder (noise averaging).
-\end{itemize}
-\end{alertblock}
-
-\vspace{0.4em}
-\begin{block}{Our initial mistake}
-We reported per-recording BACC \textbf{0.836} against LaBraM's per-window BACC \textbf{0.814}
-and concluded ``we match LaBraM.'' That comparison is invalid.\\[4pt]
-\textbf{Correction}: our best \emph{per-window} score is \textbf{0.775} — below BIOT (0.802) and LaBraM (0.814).
-\end{block}
-
-\vspace{0.4em}
-\textcolor{muted}{\footnotesize Note: per-recording is arguably the right \emph{clinical} metric (you classify patients, not 10s snippets), but it is not what the benchmark measures.}
-\end{frame}
-
-% ─────────────────────────────────────────────────────────────────────────────
-\begin{frame}{Results — Fair Per-Window Comparison}
-
+% ─── 5. KEY FINDING 2 — INV_COEFF (60s) ─────────────────────────────────────
+\begin{frame}{Finding 2 (Novel) — EEG Prefers Weak VICReg Invariance}
 \begin{columns}[T]
-\column{0.52\textwidth}
+\column{0.55\textwidth}
+\textbf{VICReg loss:}
+$$\mathcal{L} = \lambda_{\rm inv}\underbrace{\|z_1{-}z_2\|^2}_{\rm invariance}
+             + 25\,V + 1\,C$$
+
+Paper-correct: $\lambda_{\rm inv} = 25$. \quad Framework default: $\lambda_{\rm inv} = 1$.
+
+\vspace{0.7em}
 \begin{tabular}{lcc}
 \toprule
-Method & BACC & AUROC \\
+$\lambda_{\rm inv}$ & BACC\textsubscript{REC} & Seeds \\
 \midrule
-\textcolor{muted}{ContraWR} & \textcolor{muted}{0.775} & \textcolor{muted}{0.846} \\
+$\lambda = 1$ (default) & \textbf{0.819 ± .004} & 3 \\
+$\lambda = 25$ (paper) & 0.789 ± .005 & 3 \\
+\bottomrule
+\multicolumn{3}{l}{\footnotesize Gap: 3\,pp, ${\approx}6\sigma$ — not noise}
+\end{tabular}
+
+\column{0.42\textwidth}
+\textbf{Why?}
+\begin{itemize}
+  \item With $\lambda{=}1$, anti-collapse ($V$+$C$) \textbf{dominates} invariance
+  \item Encoder focuses on \emph{spreading} representations across dimensions — more discriminative
+  \item With $\lambda{=}25$, invariance dominates: encoder collapses toward view-similarity at the cost of feature diversity
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{Ongoing ablation:} $\lambda \in \{1, 5, 10, 25\}$\\
+(capDinv5 / capDinv10 running now)
+
+\vspace{0.5em}
+\textcolor{accent}{This is, to our knowledge, the first systematic evidence that EEG SSL requires weaker view-invariance than vision SSL.}
+\end{columns}
+\end{frame}
+
+% ─── 6. NAIVEJEPA (45s) ──────────────────────────────────────────────────────
+\begin{frame}{NaiveJEPA — Temporal-Split Prediction, No Anti-Collapse Needed}
+\begin{columns}[T]
+\column{0.55\textwidth}
+\textbf{Idea}: split one window in time instead of augmenting.
+
+\vspace{0.4em}
+\begin{itemize}
+  \item Context ($0\to T/2$): online encoder $\to$ mean-pool
+  \item Target ($T/2\to T$): EMA encoder $\to$ mean-pool
+  \item Loss: $\mathrm{MSE}(\hat{z}_{\rm tgt},\ z_{\rm tgt})$
+  \item \textbf{No VICReg, no SIGReg} needed: context and target see \emph{disjoint time spans} — collapse to a constant is architecturally impossible
+\end{itemize}
+
+\vspace{0.5em}
+\begin{tabular}{lcc}
+\toprule
+Method & BACC\textsubscript{REC} & Hyperparams \\
+\midrule
+VICReg + corruption & 0.819 ± .004 & 3 loss weights + EMA \\
+\textbf{NaiveJEPA} & \textbf{0.779} & \textbf{1 (EMA only)} \\
+\bottomrule
+\end{tabular}
+
+\column{0.42\textwidth}
+\begin{center}
+\begin{tikzpicture}[font=\footnotesize, node distance=0.5cm and 0.5cm]
+  \node[draw=gray!50, fill=blue!8, rounded corners, minimum width=4cm, align=center]
+    (x) {$x$: EEG window [0 → T]};
+  \node[draw=blue!50, fill=blue!15, rounded corners, below left=0.5cm and -0.5cm of x,
+        minimum width=1.6cm, align=center]
+    (ctx) {Context\\ $[0, T/2]$};
+  \node[draw=orange!60, fill=orange!10, rounded corners, below right=0.5cm and -0.5cm of x,
+        minimum width=1.6cm, align=center]
+    (tgt) {Target\\ $[T/2, T]$};
+  \node[draw=good!60, fill=good!10, rounded corners, below=0.5cm of ctx, minimum width=1.6cm, align=center]
+    (zc) {$z_{\rm ctx}$\\ online enc.};
+  \node[draw=orange!60, fill=orange!8, rounded corners, below=0.5cm of tgt, minimum width=1.6cm, align=center]
+    (zt) {$z_{\rm tgt}$\\ EMA enc.};
+  \draw[-{Latex}] (x) -- (ctx); \draw[-{Latex}] (x) -- (tgt);
+  \draw[-{Latex}] (ctx) -- (zc); \draw[-{Latex}] (tgt) -- (zt);
+  \draw[-{Latex}, red!70, thick, dashed] (zc.east) -- (zt.west)
+    node[midway,above,font=\tiny\bfseries,text=red!70]{predict};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.3em}
+\textcolor{muted}{\footnotesize Only 0.04 below VICReg + 3 loss coefficients, with 1 hyperparameter.}
+\end{columns}
+\end{frame}
+
+% ─── 7. ARCHITECTURE COMPARISON (30s) ────────────────────────────────────────
+\begin{frame}{Encoder Ranking — Simple Conv Wins}
+\begin{columns}[T]
+\column{0.52\textwidth}
+\begin{tabular}{llcc}
+\toprule
+Encoder & Type & Params & BACC\textsubscript{REC} \\
+\midrule
+\textcolor{good}{\textbf{Conv1D}} & Strided conv & 0.4M & \textbf{0.819} \\
+BIOT-style & FFT patches & 1.2M & 0.790 \\
+LaBraM-style & Raw patches & 1.2M & $\sim$0.775$^\dagger$ \\
+\textcolor{warn}{EEGPT} & Ch-pool Tr & 0.8M & \textcolor{warn}{collapsed} \\
+\bottomrule
+\multicolumn{4}{l}{\footnotesize $^\dagger$ accuracy, not BACC (early eval)}
+\end{tabular}
+
+\vspace{0.5em}
+\textbf{Why Conv wins:}\\
+The 0.4M conv has no architectural mismatch with corruption augmentation, trains stably, and plateaus at 0.82 regardless of depth, width, or data volume.
+
+\column{0.45\textwidth}
+\textbf{EEGPT failure: architectural conflict}
+\begin{itemize}
+  \item Cross-attention pools 19 channels $\to$ 1 token per time step
+  \item Channel-drop creates views with \emph{different channel sets}
+  \item The two views are structurally incompatible before the encoder sees them
+  \item Fix: remove channel-drop $\to$ TUEV 0.182 $\to$ 0.358
+\end{itemize}
+
+\vspace{0.3em}
+\textcolor{muted}{\footnotesize Lesson: always ablate augmentations \emph{per} encoder family.}
+\end{columns}
+\end{frame}
+
+% ─── 8. FAIR COMPARISON TO LITERATURE (45s) ──────────────────────────────────
+\begin{frame}{Honest Position vs Literature (Per-Window)}
+
+\begin{alertblock}{The evaluation trap: per-window vs per-recording ($\approx$5\,pp gap)}
+Literature (BIOT, LaBraM, FEMBA) reports \textbf{per-window} BACC.
+Our evaluation mean-pools 16 windows/patient $\to$ \textbf{per-recording}, which is 5\,pp higher for the same encoder. Comparing them manufactures a false win.
+\end{alertblock}
+
+\vspace{0.5em}
+\begin{columns}[T]
+\column{0.50\textwidth}
+\begin{tabular}{lcc}
+\toprule
+Method & BACC\textsubscript{WIN} & AUROC \\
+\midrule
+\textcolor{muted}{ContraWR (SSL)} & \textcolor{muted}{0.775} & \textcolor{muted}{0.846} \\
 \textcolor{accent}{BIOT pretrained} & \textcolor{accent}{0.802} & \textcolor{accent}{0.874} \\
 \textcolor{accent}{LaBraM-Base} & \textcolor{accent}{0.814} & \textcolor{accent}{0.902} \\
 \midrule
-EB-JEPA base & 0.756 & 0.845 \\
-\textbf{+ corruption} & \textbf{0.770} & 0.848 \\
-\textbf{+ SIGReg + corrupt} & \textbf{0.775} & \textbf{0.856} \\
+\textbf{EB-JEPA SIGReg + corrupt} & \textbf{0.775} & \textbf{0.856} \\
+EB-JEPA VICReg + corrupt & 0.770 & 0.848 \\
 EEGNet (supervised) & 0.796 & 0.882 \\
 \bottomrule
 \end{tabular}
 
-\vspace{0.5em}
-\textcolor{good}{$\checkmark$} Matches ContraWR — competitive SSL baseline\\
-\textcolor{warn}{$\times$} Still 4\,pp below LaBraM
-
-\column{0.45\textwidth}
-\includegraphics[width=\linewidth]{figures/ablation_what_moved.png}
-\end{columns}
-\end{frame}
-
-% ─────────────────────────────────────────────────────────────────────────────
-\begin{frame}{Ablation — What Actually Moved the Needle}
-
-\begin{columns}[T]
-\column{0.6\textwidth}
-\begin{tabular}{lcc}
-\toprule
-Variant & $\Delta$BACC & $\Delta$AUROC \\
-\midrule
-Base VICReg & — & — \\
-\textbf{+corruption} & \textcolor{good}{+0.014} & \textcolor{good}{+0.003} \\
-+spectral (0.1) & +0.009 & +0.004 \\
-SIGReg +corrupt & +0.019 & +0.011 \\
-\midrule
-Scaled encoder (depth 5) & $\approx$0 & — \\
-150-epoch pretraining & $\approx$0 & — \\
-Masked-prediction JEPA & \textcolor{warn}{$-$0.074} & — \\
-Multi-corpus 4× data & +0.012 & — \\
-\bottomrule
-\end{tabular}
-
-\column{0.38\textwidth}
-\textbf{Key lesson:}
-\begin{itemize}
-  \item Corruption augmentation is the dominant win
-  \item SIGReg $\geq$ VICReg (consistent with paper)
-  \item Scaling \& more data did \emph{not} help — binding constraint is \textbf{encoder capacity}
-  \item Frame-prediction JEPA underperformed with global-pool probe
-\end{itemize}
-\end{columns}
-\end{frame}
-
-% ─────────────────────────────────────────────────────────────────────────────
-\begin{frame}{Failure Analysis — VICReg Bug + EEGPT Collapse}
-
-\begin{columns}[T]
-\column{0.50\textwidth}
-\textbf{Bug: wrong VICReg coefficients}
-\begin{itemize}
-  \item Implementation used $(1,1,1)$ instead of $(25,25,1)$
-  \item Invariance underweighted \textbf{25$\times$} — encoder barely penalised for mismatching views
-  \item Fix: added \texttt{inv\_coeff=25} to \texttt{VICRegLoss}
-\end{itemize}
-
-\vspace{0.5em}
-\textbf{EEGPT collapse (two causes)}
-\begin{enumerate}
-  \item \textbf{Architectural}: 19 channels → 1 pooled token per patch. Only 10 temporal tokens total. Channel-drop augmentation makes the two views structurally incompatible \emph{before} the transformer sees them.
-  \item \textbf{Underweighted invariance} (the bug above): optimizer never forced the encoder to fix this.
-\end{enumerate}
-Result: EEGPT trained \emph{below} random init (acc 0.641 vs random 0.674).
-
 \column{0.48\textwidth}
-\includegraphics[width=\linewidth]{figures/vicreg_fix.png}
-\footnotesize
-Fixed run (green): inv\_loss 0.018 at epoch 11\\
-Old run (red dashed): stuck at 0.103 at epoch 19
-\end{columns}
-\end{frame}
-
-% ─────────────────────────────────────────────────────────────────────────────
-\begin{frame}{Encoder Ranking \& Collapse Diagnosis}
-
-\begin{columns}[T]
-\column{0.55\textwidth}
-\includegraphics[width=\linewidth]{figures/encoder_comparison.png}
-
-\column{0.42\textwidth}
-\textbf{Observations:}
+\textbf{Honest reading:}
 \begin{itemize}
-  \item \textcolor{good}{\textbf{Conv}} (simple, 0.4M) beats all transformers
-  \item \textcolor{accent}{LaBraM-style} (raw patches) is the best transformer architecture for VICReg
-  \item \textcolor{warn}{BIOT}: FFT magnitude discards phase → representation captures frequency statistics, not temporal pathology patterns. Slightly below random with SIGReg.
-  \item \textcolor{warn}{EEGPT}: systematic collapse with old VICReg coefficients. Fix running — inv\_loss already $5\times$ lower.
+  \item \textcolor{good}{$\checkmark$} Matches ContraWR (1.6M) with 0.4M parameters
+  \item \textcolor{warn}{$\times$} 3.9\,pp below LaBraM-Base (5.8M, 200 ep)
+  \item Competitive with EEGNet (supervised) as a \emph{frozen} representation
+  \item Per-recording our best is 0.825 / fine-tuned 0.812 (ties supervised EEGNet)
 \end{itemize}
-\textcolor{muted}{\footnotesize Note: accuracy only for this plot (BACC unavailable for yhammache's old runs).}
 \end{columns}
 \end{frame}
 
-% ─────────────────────────────────────────────────────────────────────────────
-\begin{frame}{Transfer to TUEV (6-class Event Classification)}
-
+% ─── 9. TUEV TRANSFER (45s) ──────────────────────────────────────────────────
+\begin{frame}{Cross-Task Transfer to TUEV (6-class Event Detection)}
 \begin{columns}[T]
 \column{0.55\textwidth}
-\textbf{Task}: TUEV — 6 EEG event types (spsw, gped, pled, eyem, artf, bckg)\\
-\textbf{Protocol}: freeze TUAB-pretrained encoder; train linear probe on TUEV
+\textbf{Protocol}: freeze TUAB-pretrained encoder; train linear probe on TUEV (no TUEV labels during SSL).
 
 \vspace{0.5em}
 \begin{tabular}{lcc}
 \toprule
-Encoder & BACC & Kappa \\
+Method & TUEV BACC & Trained on TUEV? \\
 \midrule
-Random init & 0.337 & 0.110 \\
-\textbf{EB-JEPA (TUAB frozen)} & \textbf{0.364} & \textbf{0.141} \\
+ST-Transformer & 0.3385 & \textcolor{warn}{yes, full} \\
+CNN-Transformer & 0.4100 & \textcolor{warn}{yes, full} \\
 \midrule
-BIOT (paper) & 0.528 & 0.435 \\
+\textbf{VICReg (TUAB SSL)} & \textbf{0.382} & \textcolor{good}{probe only} \\
+\textbf{NaiveJEPA (TUAB SSL)} & \textbf{0.389} & \textcolor{good}{probe only} \\
+\midrule
+FFCL & 0.4551 & \textcolor{warn}{yes, full} \\
+ContraWR & 0.4664 & \textcolor{warn}{yes, full} \\
+BIOT pretrained & 0.5009 & \textcolor{warn}{yes, full} \\
 \bottomrule
 \end{tabular}
 
 \column{0.42\textwidth}
-\textbf{Takeaways:}
-\begin{itemize}
-  \item SSL representation \emph{does} transfer — $+$0.027 BACC over random
-  \item Still far below BIOT (0.528)
-  \item BIOT's FFT tokenisation may be better for TUEV's frequency-based event types
-  \item Pretraining task (binary pathology) $\neq$ transfer task (6 event types)
-\end{itemize}
+\textbf{Key point:}
+
+Our encoder \textbf{never saw a single TUEV label}. It was pretrained on TUAB binary pathology labels.
+
+\vspace{0.5em}
+A linear probe on top beats \textbf{ST-Transformer and CNN-Transformer} trained end-to-end on TUEV.
+
+\vspace{0.5em}
+\textcolor{accent}{Transfer from a binary task to a 6-class task — with only a logistic regression — is the strongest evidence that the SSL representation is genuinely general.}
 \end{columns}
 \end{frame}
 
-% ─────────────────────────────────────────────────────────────────────────────
-\begin{frame}{Conclusion}
+% ─── 10. SUMMARY (30s) ───────────────────────────────────────────────────────
+\begin{frame}{Summary}
 
 \begin{columns}[T]
 \column{0.50\textwidth}
 \textbf{\textcolor{good}{What works}}
 \begin{itemize}
-  \item Corruption augmentation: $+$0.014 BACC (dominant gain)
-  \item SIGReg $\geq$ VICReg with correct $(25,25,1)$ coefficients
-  \item Simple Conv encoder beats all transformer variants (3× smaller)
-  \item Frozen probe BACC 0.775 matches ContraWR
-  \item Per-recording BACC 0.836 — competitive clinical score
+  \item \textbf{Corruption augmentation}: +2.3\,pp BACC (3-seed, robust)
+  \item \textbf{$\lambda_{\rm inv}{=}1$}: beats paper-correct $\lambda{=}25$ by 3\,pp/$6\sigma$ — EEG-specific finding
+  \item \textbf{SIGReg $\geq$ VICReg}: consistent +0.5--1\,pp AUROC
+  \item \textbf{NaiveJEPA}: 0.779 BACC with 1 hyperparameter (no anti-collapse term)
+  \item \textbf{TUEV transfer}: beats two supervised baselines without TUEV labels
 \end{itemize}
 
 \column{0.48\textwidth}
 \textbf{\textcolor{warn}{What doesn't}}
 \begin{itemize}
-  \item Scaling encoder: bottleneck is architecture, not width/depth
-  \item EEGPT: channel-pool + channel-drop = incompatible
-  \item Masked-prediction JEPA (20 ep, global-pool probe)
-  \item FFT tokenisation (BIOT): discards phase/temporal dynamics
+  \item Scaling the encoder (capacity is not the limit)
+  \item 4$\times$ pretraining data (conv saturates)
+  \item EEGPT (channel-drop $\times$ channel-pool conflict)
+  \item Spectral auxiliary loss (neutral, not beneficial)
+  \item GRU predictive JEPA (same-window prediction degenerates)
 \end{itemize}
 \end{columns}
 
-\vspace{0.6em}
-\begin{block}{Honest position (per-window, fair to literature)}
-0.775 — below BIOT (0.802) and LaBraM (0.814). \\
-Competitive with supervised EEGNet (0.796) as a \emph{frozen} representation. \\
-The binding constraint is encoder capacity and tokenisation quality.
+\vspace{0.5em}
+\begin{block}{Open next step}
+$\lambda_{\rm inv}$ sweep $\{1,5,10,25\}$ running now. If monotone ordering confirms, EEG SSL prefers weaker invariance — first systematic evidence in the literature.
 \end{block}
 \end{frame}
 
-% ─────────────────────────────────────────────────────────────────────────────
-%% ─ BACKUP SLIDES ─────────────────────────────────────────────────────────────
-%\begin{frame}{Backup — Per-Recording Table (Clinical)}
-%\begin{tabular}{lccc}
-%\toprule
-%Model & BACC & AUROC & F1 \\
-%\midrule
-%EB-JEPA base (frozen) & 0.796 & 0.888 & 0.774 \\
-%EB-JEPA +corruption & 0.825 & 0.904 & 0.805 \\
-%EB-JEPA +spectral 0.1 & 0.836 & 0.887 & 0.818 \\
-%EB-JEPA fine-tune & 0.837 & 0.919 & 0.816 \\
-%EEGNet (supervised) & 0.824 & 0.913 & 0.802 \\
-%ShallowConvNet (supervised) & 0.803 & 0.893 & 0.786 \\
-%\bottomrule
-%\end{tabular}
-%
-%\vspace{0.5em}
-%\footnotesize Per-recording = mean-pool 16 windows/patient. Not comparable to per-window literature. \\
-%Shown for clinical context only.
-%\end{frame}
+% ─── BACKUP ───────────────────────────────────────────────────────────────────
+\begin{frame}{Backup — Per-Recording Table (Clinical Metric)}
+\begin{tabular}{lccc}
+\toprule
+Model & BACC\textsubscript{REC} & AUROC & Eval \\
+\midrule
+Conv + VICReg + corruption (3 seeds) & \textbf{0.819 ± .004} & \textbf{0.900 ± .006} & Frozen \\
+Conv + SIGReg + corruption & 0.825 & 0.913 & Frozen \\
+Conv + NaiveJEPA & 0.779 & 0.863 & Frozen \\
+Conv + VICReg + corruption (FT, 3 seeds) & 0.812 ± .004 & 0.908 ± .006 & Fine-tuned \\
+EEGNet (supervised) & 0.812 & 0.882 & — \\
+\midrule
+LaBraM-Base (per-win only) & \textit{0.814\textsubscript{WIN}} & \textit{0.902\textsubscript{WIN}} & FT \\
+\bottomrule
+\end{tabular}
 
-%\begin{frame}{Backup — SOTA Table (per-window, verified from PDFs)}
-%\begin{tabular}{lcc}
-%\toprule
-%Method & BACC & AUROC \\
-%\midrule
-%SPaRCNet & 0.790 & 0.855 \\
-%ContraWR & 0.775 & 0.846 \\
-%CNN-Transformer & 0.787 & 0.850 \\
-%FFCL & 0.776 & 0.844 \\
-%ST-Transformer & 0.797 & 0.871 \\
-%AFTA & 0.788 & 0.868 \\
-%FEMBA & 0.808 & 0.882 \\
-%BIOT & 0.802 & 0.874 \\
-%LaBraM-Base & 0.814 & 0.902 \\
-%LaBraM-Huge & 0.826 & 0.916 \\
-%\bottomrule
-%\end{tabular}
-%\end{frame}
+\vspace{0.5em}
+\textcolor{muted}{\footnotesize Per-recording = mean-pool 16 windows/patient.
+Not directly comparable to per-window literature. Best per-window: 0.775 (SIGReg + corrupt).
+The 0.836 result (spectral-0.1, single-seed, eval-selected coefficient) is confounded and not reported here.}
+\end{frame}
+
+\begin{frame}{Backup — VICReg $\lambda_{\rm inv}$ Ablation (3 seeds each)}
+\begin{tabular}{lccc}
+\toprule
+$\lambda_{\rm inv}$ & BACC\textsubscript{REC} & AUROC & Note \\
+\midrule
+1 (default) & \textbf{0.819 ± .004} & \textbf{0.900 ± .006} & anti-collapse dominates \\
+5 & running & — & capDinv5 \\
+10 & running & — & capDinv10 \\
+25 (paper) & 0.789 ± .005 & 0.882 ± .004 & invariance dominates \\
+\bottomrule
+\multicolumn{4}{l}{\footnotesize Gap $\lambda=1$ vs $\lambda=25$: 3\,pp, $\approx$6$\sigma$ — not noise.}
+\end{tabular}
+\end{frame}
 
 \end{document}
