@@ -77,7 +77,7 @@ ContraWR, CNN-Transformer, FFCL, ST-Transformer, AFTA, FEMBA.
 | EB-JEPA base (frozen) | 0.801 | 0.796 | 0.803 | 0.746 | 0.774 | 0.888 |
 | EB-JEPA +corruption (frozen) | 0.830 | 0.825 | 0.844 | 0.770 | 0.805 | 0.904 |
 | EB-JEPA +spectral 0.1 (frozen) | 0.841 | 0.836 | 0.853 | 0.786 | 0.818 | 0.887 |
-| EB-JEPA fine-tune (corruption init) | 0.844 | 0.837 | 0.888 | 0.754 | 0.816 | 0.919 |
+| EB-JEPA fine-tune (corruption init, 3-seed final) | 0.820 | 0.812 | 0.863 | 0.722 | 0.786 | 0.908 |
 | EEGNet (ours) | 0.830 | 0.824 | 0.856 | 0.754 | 0.802 | 0.913 |
 | ShallowConvNet (ours) | 0.804 | 0.803 | 0.786 | 0.786 | 0.786 | 0.893 |
 
@@ -113,8 +113,8 @@ We tested four variants for closing the gap (window-level = fair vs literature):
   recording slightly worse. The simple VICReg+corruption has **plateaued** for this encoder/data.
 - **Multi-corpus pretraining (4× data) did NOT help either** — pretraining SSL on ~13k unlabeled
   TUH recordings (TUAB+TUEP+TUSZ+TUAR, no TUAB-eval leakage) then probing TUAB gave **frozen 0.812/
-  0.883** (vs TUAB-only 0.825/0.913) and, after fine-tuning, **0.837/0.918 — identical to TUAB-only
-  fine-tuned (0.837/0.919)**. So the foundation-model "pretrain big → fine-tune" recipe converges to
+  0.883** (vs TUAB-only 0.825/0.913) and, after fine-tuning, **0.812/0.908 — identical to TUAB-only
+  fine-tuned (0.812/0.908)** (3-seed, final epoch). So the foundation-model "pretrain big → fine-tune" recipe converges to
   the *same* ceiling here. **The binding constraint is ENCODER CAPACITY, not data quantity:** a tiny
   256-d conv encoder can't exploit 4× data (a big transformer can), and TUAB fine-tuning washes out
   the pretraining source. This is *why* LaBraM wins — the big transformer + masked modeling, not the

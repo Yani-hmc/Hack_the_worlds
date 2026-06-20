@@ -36,13 +36,15 @@ and **AUROC** (TUAB papers don't report F1/precision/recall — those exist only
 | ContraWR | 0.775 / 0.846 | *(not re-run)* | ✓ BIOT Table 4 |
 | **LaBraM-Base** | 0.814 / 0.902 | *(not re-run)* | ✓ LaBraM Table 2 |
 | **EB-JEPA corruption (ours)** | — | **0.825 / 0.904** | our run |
-| **EB-JEPA fine-tune (ours)** | — | **0.837 / 0.919** | our run |
+| **EB-JEPA fine-tune (ours, 3-seed final)** | — | **0.812 / 0.908** | our run |
 
 Honesty notes: we re-ran **EEGNet + ShallowConvNet** ourselves; their *paper* TUAB numbers
 are ⟨unverified⟩ (recalled, and from 16-ch/per-window setups — ours is 19-ch/per-recording/8-ep,
 which explains our higher EEGNet). The BIOT/SPaRCNet/ContraWR/ST-Transformer/LaBraM paper numbers
-are **verified against the source papers** but we did not re-run them. **Our JEPA (0.904 / 0.919
-AUROC) beats verified BIOT (0.869–0.874) and matches/exceeds verified LaBraM-Base (0.902).**
+are **verified against the source papers** but we did not re-run them. ⚠️ Those literature AUROCs
+are **per-window**; our 0.904/0.908 are **per-recording** (~5 pp higher) and are *not* comparable.
+Per-window our JEPA (0.775 / 0.856) sits **below** BIOT/LaBraM; per-recording, fine-tuned, it
+**ties supervised EEGNet** (0.812, 3-seed final). BIOT's verified per-window AUROC is 0.8815 (see `SOTA_TABLE.md`).
 
 ---
 
@@ -54,7 +56,7 @@ AUROC) beats verified BIOT (0.869–0.874) and matches/exceeds verified LaBraM-B
 | EB-JEPA base (frozen) | 0.801 | 0.803 | 0.746 | 0.774 | 0.796 | 0.888 |
 | EB-JEPA +corruption (frozen) | 0.830 | 0.844 | 0.770 | 0.805 | 0.825 | 0.904 |
 | EB-JEPA +spectral 0.1 (frozen) | 0.841 | 0.853 | 0.786 | **0.818** | 0.836 | 0.887 |
-| **EB-JEPA fine-tune (corruption init)** | **0.844** | **0.888** | 0.754 | 0.816 | **0.837** | **0.919** |
+| **EB-JEPA fine-tune (corruption init, 3-seed final)** | 0.820 | 0.863 | 0.722 | 0.786 | **0.812** | **0.908** |
 
 (Literature methods omitted here — TUAB papers don't report precision/recall/F1.)
 
@@ -99,8 +101,8 @@ linear probe implies — the representation encodes pathology without being triv
 ---
 
 ## One-line takeaways
-1. **Self-supervised EB-JEPA matches supervised EEGNet and the BIOT/LaBraM SOTA** on TUAB — frozen, no labels in pretraining.
+1. **Self-supervised EB-JEPA matches supervised EEGNet** on TUAB (per-recording, no labels in pretraining); **per-window it sits with the simple baselines, below the BIOT/LaBraM SOTA.**
 2. **Exact 40% corruption** is the key SSL gain (+2.9 BAcc / +1.5 AUROC over base).
-3. **Fine-tuning from the corruption ckpt is best overall: AUROC 0.919, BAcc 0.837.**
+3. **Fine-tuning ties supervised EEGNet: BAcc 0.812, AUROC 0.908 (3-seed, final epoch).** (The earlier best-epoch 0.837/0.919 was test-set peeking — retracted.)
 4. The **fixed** spectral term (tuned coeff 0.1) gives the best frozen BAcc/F1; FFT-consistency is near-neutral.
-5. Verifying the literature **corrected BIOT downward** (0.869, not 0.882) — our edge over BIOT is real.
+5. Verifying the literature fixed earlier hallucinations (BIOT per-window AUROC is **0.8815**, LaBraM 0.902 — see `SOTA_TABLE.md`); per-window we do **not** beat them.

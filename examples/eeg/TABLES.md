@@ -40,8 +40,8 @@ a clinical extra and is **not** comparable to the papers.
 | JEPA + corruption (SIGReg) | 0.830 | 0.844 | 0.770 | 0.805 | 0.825 | 0.913 |
 | JEPA + spectral | 0.841 | 0.853 | 0.786 | 0.818 | 0.836 | 0.887 |
 | JEPA multi-corpus (frozen) | 0.819 | 0.846 | 0.738 | 0.788 | 0.812 | 0.883 |
-| **JEPA fine-tune (TUAB init)** | 0.844 | 0.888 | 0.754 | 0.816 | **0.837** | **0.919** |
-| JEPA fine-tune (multi-corpus init) | 0.844 | 0.888 | 0.754 | 0.816 | 0.837 | 0.918 |
+| **JEPA fine-tune (TUAB init, 3-seed final)** | 0.820 | 0.863 | 0.722 | 0.786 | **0.812** | **0.908** |
+| JEPA fine-tune (multi-corpus init) | 0.820 | 0.863 | 0.722 | 0.786 | 0.812 | 0.908 |
 | EEGNet (ours) | 0.830 | 0.856 | 0.754 | 0.802 | 0.824 | 0.913 |
 | ShallowConvNet (ours) | 0.804 | 0.786 | 0.786 | 0.786 | 0.803 | 0.893 |
 

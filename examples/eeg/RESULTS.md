@@ -16,14 +16,14 @@ All numbers below were **actually run on the DALIA cluster** (NVIDIA GB200), not
 | + exact 40 % corruption (frozen) | 0.830 | 0.825 | 0.844 | 0.770 | 0.805 | **0.904** |
 | + spectral-fixed 0.1 (frozen) | 0.841 | **0.836** | 0.853 | 0.786 | **0.818** | 0.887 |
 | + corruption + spectral (frozen) | 0.808 | 0.802 | 0.823 | 0.738 | 0.778 | 0.899 |
-| **Fine-tune from corruption ckpt** (Phase 4, best ep.) | — | **0.837** | — | — | 0.816 | **0.919** |
+| **Fine-tune from corruption ckpt** (Phase 4, 3-seed final ep.) | — | **0.812** | — | — | 0.786 | **0.908** |
 | *EEGNet (supervised, ours)* | 0.830 | 0.824 | 0.856 | 0.754 | 0.802 | 0.913 |
 | *ShallowConvNet (supervised, ours)* | 0.804 | 0.803 | 0.786 | 0.786 | 0.786 | 0.893 |
 | *Literature ✓verified: BIOT (vanilla)* | — | 0.793 | — | — | — | 0.869 |
 | *Literature ✓verified: BIOT (best pretrained)* | — | 0.802 | — | — | — | 0.874 |
 | *Literature ✓verified: LaBraM-Base* | — | 0.814 | — | — | — | 0.902 |
 
-(MLP probe ≈ LogReg probe; LogReg shown. Baseline rows are per-recording. Literature = balanced-acc / AUROC, now **verified against the source papers**: BIOT Table 4 / LaBraM Table 2 — the earlier offline "BIOT 0.882" was wrong; BIOT's real TUAB AUROC is ~0.869. Our corruption (0.904) and fine-tune (0.919) AUROC therefore clearly **beat BIOT and match/exceed LaBraM-Base**.)
+(MLP probe ≈ LogReg probe; LogReg shown. Baseline rows are per-recording. Literature = balanced-acc / AUROC, now **verified against the source papers**: BIOT Table 4 / LaBraM Table 2 — the earlier offline "BIOT 0.882" was wrong; BIOT's real TUAB AUROC is ~0.869. Those literature AUROCs are **per-window**; our 0.904/0.908 are **per-recording** (~5 pp higher) and are NOT comparable — per-window our JEPA (0.775/0.856) sits below BIOT/LaBraM. BIOT's verified per-window AUROC is 0.8815, not 0.869.)
 
 ### Coefficient sweeps & seed-averaging (ran on Dalia)
 - **Spectral coeff (frozen probe BAcc):** 0.05→0.821, **0.1→0.836 (optimum)**, 0.3→0.789, 1.0→0.785. **Chosen `spectral_coeff = 0.1`** (best BAcc/F1; AUROC ~flat — helps the threshold, not the ranking).
@@ -36,9 +36,9 @@ t-SNE and UMAP of the 276 held-out-patient recordings, colored normal/abnormal �
 structure (abnormal-dense vs normal-dense regions), consistent with ~0.90 AUROC.
 
 ### Takeaways
-1. **Our self-supervised JEPA frozen probe matches supervised EEGNet and the BIOT/LaBraM literature** — base already ≈ BIOT (0.796/0.888 vs 0.796/0.882).
+1. **Our self-supervised JEPA frozen probe matches supervised EEGNet** (per-recording); per-window it sits with the simple baselines, **below** the BIOT/LaBraM literature.
 2. **Exact 40 % corruption is the key SSL win**: +2.9 BAcc / +1.5 AUROC over base (0.825/0.904, ≈ LaBraM).
-3. **Fine-tuning from the corruption checkpoint is the best overall: AUROC 0.919, BAcc 0.837.**
+3. **Fine-tuning ties supervised EEGNet: BAcc 0.812 / AUROC 0.908 (3-seed, final epoch; best-epoch 0.837 was test-set peeking, retracted).**
 4. The **fixed** spectral term gives the best *frozen* BAcc/F1 (0.836/0.818) but flat AUROC — it helps the decision threshold, not the ranking. Combining corruption+spectral did **not** stack (0.802/0.899) — the two regularizers partly conflict.
 
 ## Phase-5 energy strategies — what each adds, source, weights, effect
@@ -67,7 +67,7 @@ TAG=spec_fixed   OVR="model.spectral_coeff=0.1"                                 
 TAG=corrupt_spec OVR="data.aug_exact_corruption=true model.spectral_coeff=0.1"   sbatch eeg_run.sbatch
 # eval prints accuracy/balanced-acc/precision/recall/F1/AUROC for both LogReg and MLP probes
 
-# Phase-4 fine-tune from a checkpoint (best overall result)
+# Phase-4 fine-tune from a checkpoint (ties supervised EEGNet, 3-seed final epoch)
 MOD=examples.eeg.finetune ARGS="--fname examples/eeg/cfgs/finetune.yaml \
   --init $WORK/checkpoints/eeg/corrupt/latest.pth.tar" sbatch baseline.sbatch
 

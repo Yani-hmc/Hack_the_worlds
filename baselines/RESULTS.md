@@ -50,13 +50,12 @@ energy-strategy ablation and reproduction commands.
 | ShallowConvNet (ours, supervised)| 0.804 | 0.803 | 0.786 | 0.786 | 0.786 | 0.893 |
 | BIOT (ours, supervised)          | TODO (needs repo clone, see biot/README.md) | | | | | |
 | **EB-JEPA (ours, frozen probe, +corruption)** | 0.830 | 0.825 | 0.844 | 0.770 | 0.805 | **0.904** |
-| **EB-JEPA (ours, fine-tuned from corruption)** | — | **0.837** | — | — | 0.816 | **0.919** |
+| **EB-JEPA (ours, fine-tuned, 3-seed final)** | — | **0.812** | — | — | 0.786 | **0.908** |
 
-> Best overall = fine-tuned EB-JEPA (AUROC 0.919). The **frozen** self-supervised probe
-> (0.825/0.904) already matches supervised EEGNet (0.824/0.913) and the BIOT/LaBraM literature.
-> vs Group A (balanced-acc / AUROC, like-for-like, ✓verified): BIOT 0.793/0.869 (vanilla),
-> 0.802/0.874 (best pretrained), LaBraM-Base 0.814/0.902. Our corruption/fine-tune AUROC
-> (0.904 / 0.919) beats BIOT and matches/exceeds LaBraM-Base.
+> Fine-tuned EB-JEPA ties supervised EEGNet (per-recording BAcc 0.812 / AUROC 0.908; 3-seed, final
+> epoch). ⚠️ The literature column is **per-window**; our 0.904/0.908 are **per-recording** (~5 pp
+> higher) and are NOT comparable — per-window our JEPA (0.775/0.856) is **below** BIOT/LaBraM.
+> (BIOT's verified per-window AUROC is 0.8815, not 0.869; see `examples/eeg/SOTA_TABLE.md`.)
 
 ### Exact commands to fill each row (run on a Dalia COMPUTE node)
 

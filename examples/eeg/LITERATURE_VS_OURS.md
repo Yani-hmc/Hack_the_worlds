@@ -81,7 +81,7 @@ We did **NOT** re-run BIOT/LaBraM/SPaRCNet/ContraWR/etc. (those stay as cited li
 | EB-JEPA + corruption (VICReg) | 0.830 | 0.825 | 0.844 | 0.770 | 0.805 | 0.904 |
 | EB-JEPA + corruption (SIGReg) | — | 0.825 | — | — | 0.805 | 0.913 |
 | EB-JEPA + spectral 0.1 (VICReg) | 0.841 | 0.836 | 0.853 | 0.786 | 0.818 | 0.887 |
-| **EB-JEPA fine-tune (corruption init)** | 0.844 | **0.837** | 0.888 | 0.754 | 0.816 | **0.919** |
+| **EB-JEPA fine-tune (corruption init, 3-seed final)** | 0.820 | **0.812** | 0.863 | 0.722 | 0.786 | **0.908** |
 | EEGNet (ours) | 0.830 | 0.824 | 0.856 | 0.754 | 0.802 | 0.913 |
 | ShallowConvNet (ours) | 0.804 | 0.803 | 0.786 | 0.786 | 0.786 | 0.893 |
 
