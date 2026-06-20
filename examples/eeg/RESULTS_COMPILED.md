@@ -104,6 +104,14 @@ We tested four variants for closing the gap (window-level = fair vs literature):
   EB-JEPA paper's "SIGReg ≥ VICReg, easier to tune" finding.
 - **Scaling (7.5× epochs + bigger encoder) did NOT help** — window-level flat (0.768 vs 0.770),
   recording slightly worse. The simple VICReg+corruption has **plateaued** for this encoder/data.
+- **Multi-corpus pretraining (4× data) did NOT help either** — pretraining SSL on ~13k unlabeled
+  TUH recordings (TUAB+TUEP+TUSZ+TUAR, no TUAB-eval leakage) then probing TUAB gave **frozen 0.812/
+  0.883** (vs TUAB-only 0.825/0.913) and, after fine-tuning, **0.837/0.918 — identical to TUAB-only
+  fine-tuned (0.837/0.919)**. So the foundation-model "pretrain big → fine-tune" recipe converges to
+  the *same* ceiling here. **The binding constraint is ENCODER CAPACITY, not data quantity:** a tiny
+  256-d conv encoder can't exploit 4× data (a big transformer can), and TUAB fine-tuning washes out
+  the pretraining source. This is *why* LaBraM wins — the big transformer + masked modeling, not the
+  data alone. (Code: `examples/eeg/pretrain_multicorpus.py`.)
 - **Masked-prediction JEPA underperformed** (window 0.682). Our quick implementation (EMA target +
   Transformer predictor + VC anti-collapse, `examples/eeg/masked_jepa.py`) is worse than the
   invariance form — it would need real tuning (mask ratio, predictor size, EMA/loss balance), and/or
