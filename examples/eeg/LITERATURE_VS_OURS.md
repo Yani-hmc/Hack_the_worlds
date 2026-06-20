@@ -9,38 +9,48 @@ patient-disjoint. The literature scores **per-sample (per-window)**; so do our "
 
 ---
 
-## PART 1 — From the papers (confirm these yourself)
+## PART 1 — From the papers (now CONFIRMED against the LaBraM tables)
 
-Metric = Balanced Accuracy / AUROC on TUAB. "Confidence" = how sure we are of the value.
+**Authoritative source: LaBraM (Jiang et al., ICLR 2024), Table 1 (TUAB) & Table 2 (TUEV)**
+— https://arxiv.org/abs/2405.18765. These tables evaluate ALL methods (incl. BIOT and the
+baselines) under one consistent protocol, so we use them as the single reference. ✓ = confirmed
+against the actual table image.
 
-| Method | BAcc | AUROC | Where to look (paper · table) | Confidence |
+### TUAB — LaBraM Table 1 (balanced-acc / AUC-PR / AUROC)
+| Method | Model size | Balanced-acc | AUC-PR | AUROC |
 |---|---|---|---|---|
-| SPaRCNet | 0.7896 | 0.8676 | BIOT, **Table 4** (App. B.1) | **HIGH — we fetched the table** |
-| ContraWR | 0.7746 | 0.8456 | BIOT, Table 4 | HIGH — fetched |
-| CNN-Transformer | 0.7777 | 0.8461 | BIOT, Table 4 | HIGH — fetched |
-| FFCL | 0.7848 | 0.8569 | BIOT, Table 4 | HIGH — fetched |
-| ST-Transformer | 0.7966 | 0.8707 | BIOT, Table 4 | HIGH — fetched |
-| **BIOT (vanilla)** | 0.7925 | 0.8691 | BIOT, Table 4 | HIGH — fetched |
-| **BIOT (pretrained, PREST+SHHS)** | 0.8019 | 0.8739 | BIOT, Table 4 | HIGH — fetched |
-| **LaBraM-Base** | 0.8140 | 0.9022 | LaBraM, **Table 2** | MED — from search summary, confirm in Table 2 |
-| LaBraM-Large | 0.8226 | 0.9127 | LaBraM, Table 2 | MED — confirm |
-| LaBraM-Huge | 0.8258 | 0.9162 | LaBraM, Table 2 | MED — confirm |
-| EEGNet | 0.7642 | 0.8412 | EEG-Bench (arXiv:2512.08959) | MED — from search, confirm |
-| ShallowConvNet | ~0.752 (BAcc) | — | spectral-audit (arXiv:2606.08583) | MED — confirm |
-| ShallowConvNet | **84.5% accuracy** (≠ BAcc) | — | Schirrmeister 2017 | MED — note: this is *accuracy* |
-| AFTA | 0.8002 | 0.8848 | Brain Sci 2025 (MDPI) | LOW — from search, confirm |
-| FEMBA-Huge | 0.8182 | — | FEMBA (arXiv:2502.06438) | LOW — confirm |
+| SPaRCNet | 0.79M | 0.7896 | 0.8414 | 0.8676 |
+| ContraWR | 1.6M | 0.7746 | 0.8421 | 0.8456 |
+| CNN-Transformer | 3.2M | 0.7777 | 0.8433 | 0.8461 |
+| FFCL | 2.4M | 0.7848 | 0.8448 | 0.8569 |
+| ST-Transformer | 3.5M | 0.7966 | 0.8521 | 0.8707 |
+| **BIOT** | 3.2M | **0.7959** | 0.8792 | **0.8815** |
+| **LaBraM-Base** | 5.8M | **0.8140** | 0.8965 | **0.9022** |
+| LaBraM-Large | 46M | 0.8226 | 0.9130 | 0.9127 |
+| LaBraM-Huge | 369M | 0.8258 | 0.9204 | 0.9162 |
 
-**Papers to open (the important four):**
-- **BIOT** — Yang et al., NeurIPS 2023. PDF: https://arxiv.org/abs/2305.10351 ·
-  readable table: https://ar5iv.labs.arxiv.org/html/2305.10351 → **Table 4, Appendix B.1** (TUAB).
-  *(We fetched this one and confirmed every cell above.)*
-- **LaBraM** — Jiang et al., ICLR 2024. https://arxiv.org/abs/2405.18765 → **Table 2** (TUAB row).
-- **EEGNet (TUAB number)** — EEG-Bench: https://arxiv.org/abs/2512.08959 (orig EEGNet: https://arxiv.org/abs/1611.08024).
-- **ShallowConvNet/Deep4Net** — Schirrmeister 2017: https://arxiv.org/abs/1708.08012 (reports **accuracy** 84.5%/85.4%, not balanced-acc).
+### TUEV — LaBraM Table 2 (balanced-acc / Cohen-κ / weighted-F1)
+| Method | Balanced-acc | Cohen-κ | Weighted-F1 |
+|---|---|---|---|
+| SPaRCNet | 0.4161 | 0.4233 | 0.7024 |
+| ContraWR | 0.4384 | 0.3912 | 0.6893 |
+| CNN-Transformer | 0.4087 | 0.3815 | 0.6854 |
+| FFCL | 0.3979 | 0.3732 | 0.6783 |
+| ST-Transformer | 0.3984 | 0.3765 | 0.6823 |
+| **BIOT** | 0.5281 | 0.5273 | 0.7492 |
+| **LaBraM-Base** | 0.6409 | 0.6637 | 0.8312 |
+| LaBraM-Large | 0.6581 | 0.6622 | 0.8315 |
+| LaBraM-Huge | 0.6616 | 0.6745 | 0.8329 |
 
-**Corrections we made to an earlier (offline, unsourced) draft:** BIOT AUROC 0.882 → **0.869**;
-EEGNet BAcc 0.745 → **0.764**; ShallowConvNet "0.845 BAcc" → that's **accuracy**, BAcc ~0.752.
+**EEGNet / ShallowConvNet are NOT in the LaBraM tables.** From other sources (confirm separately):
+EEGNet TUAB ≈ 0.764 / 0.841 (EEG-Bench, arXiv:2512.08959); ShallowConvNet reports 84.5% *accuracy*
+(Schirrmeister 2017, arXiv:1708.08012) — **accuracy, not balanced-acc**.
+
+**Correction history (be transparent):** an early offline draft had BIOT AUROC 0.882 and EEGNet
+0.745. I then "corrected" BIOT to 0.869 using BIOT's *own* paper — **that was an over-correction**:
+the standard comparison table (LaBraM Table 1, confirmed above) uses **BIOT 0.7959 / 0.8815**.
+Final values used here = the LaBraM tables. EEGNet → 0.764 (EEG-Bench); ShallowConvNet 0.845 was
+accuracy, not BAcc.
 
 ---
 
@@ -89,9 +99,20 @@ SIGReg 91.0% (EB-JEPA paper / in-repo `image_jepa/README.md`). Number to be fill
 
 ---
 
-## PART 3 — The one honest comparison (per-window)
-Our best self-supervised JEPA (SIGReg+corruption, **0.775 / 0.856**) is **≈ EEGNet (0.764/0.841)
-and ContraWR (0.775/0.846)**, **below** BIOT (0.793/0.869) and **well below** LaBraM-Base
-(0.814/0.902). Our supervised EEGNet (0.796/0.882) runs a few points above the published EEGNet —
-attributable to preprocessing (19-ch z-scored vs 16-ch), reimplementation, single seed — **not** a
-real gain. We do **not** claim to beat SOTA; we report a clean, honest, reproducible JEPA baseline.
+## PART 3 — The honest comparison (vs the confirmed LaBraM tables)
+
+**TUAB** — our best self-supervised JEPA (SIGReg+corruption), per-window = **0.775 BAcc / 0.856 AUROC**:
+- ≈ **ContraWR** (0.7746 / 0.8456) and **FFCL** (0.7848 / 0.8569) on AUROC
+- **below** SPaRCNet (0.7896 / 0.8676), ST-Transformer (0.7966 / 0.8707), **BIOT (0.7959 / 0.8815)**
+- **well below** LaBraM-Base (0.8140 / 0.9022)
+- → we sit in the **lower-middle of the pack**; we do NOT beat SOTA.
+
+**TUEV** — our frozen-transfer probe = **0.364 BAcc / 0.197 κ** (SIGReg encoder, never trained on TUEV):
+- **below every trained model** in Table 2 (weakest there: FFCL 0.3979, ST-T 0.3984; BIOT 0.5281;
+  LaBraM-Base 0.6409) — expected, since ours is a **frozen TUAB encoder + linear probe on a slightly
+  different windowing protocol**, while theirs are trained end-to-end on TUEV.
+- It still **beats a random-encoder floor** (0.337), proving the SSL representation carries
+  transferable event structure.
+
+We report a clean, honest, reproducible JEPA baseline — competitive with simple models on TUAB,
+below the SOTA transformers, and demonstrating real (if modest) transfer to TUEV.

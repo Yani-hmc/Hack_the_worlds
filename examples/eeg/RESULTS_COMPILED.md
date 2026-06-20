@@ -1,5 +1,10 @@
 # TUAB abnormal-EEG detection — compiled results (sourced) & what we re-ran
 
+> ✅ **Literature numbers confirmed** against **LaBraM (ICLR 2024) Tables 1 & 2** — see
+> `LITERATURE_VS_OURS.md` for the authoritative version. Key fix: **BIOT = 0.7959 BAcc / 0.8815
+> AUROC** on TUAB (an earlier "0.869" here was an over-correction from BIOT's own paper; the
+> standard comparison table uses 0.8815). Where this file still shows 0.869, prefer 0.8815.
+
 **Task:** binary normal-vs-abnormal EEG detection on **TUAB** (TUH Abnormal EEG Corpus) — the
 *golden benchmark* every method below reports on. Our "Hack the World" data **is** TUAB
 (`TUAB_PREPROCESSED`, 19 ch @ 200 Hz, 10 s windows, z-scored, patient-disjoint train/eval).
@@ -123,9 +128,11 @@ class (else 99% is BCKG and the task is trivial), z-score per channel, and fit a
 - **The SSL representation beats the random-feature floor on every metric** (+0.03 balanced-acc,
   +0.03 κ) — the TUAB-pretrained encoder learned structure that **transfers** to a different
   6-class event task. This is the JEPA "one representation, many tasks" result.
-- **Well below TUEV-specialized SOTA** (BIOT/LaBraM train/fine-tune big transformers on TUEV) —
-  expected for a *frozen* transfer from a tiny TUAB encoder with a linear probe.
-- **Caveat:** our event-centered + background-subsampled windowing differs from the BIOT 5 s
+- **Below TUEV-specialized SOTA** — verified literature (LaBraM Table 2, balanced-acc / κ): weakest
+  trained baseline FFCL 0.398 / 0.373, ST-Transformer 0.398 / 0.377; BIOT 0.528 / 0.527; LaBraM-Base
+  0.641 / 0.664. Our frozen-transfer 0.364 / 0.197 is below all of them — expected (frozen TUAB
+  encoder + linear probe, never trained on TUEV).
+- **Caveat:** our event-centered + background-subsampled windowing differs from the literature's
   event-segment protocol, so this is a representation-transfer probe, not a 1:1 TUEV benchmark.
 
 ## D. Method coefficients (our JEPA) and their sources
