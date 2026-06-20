@@ -245,7 +245,7 @@ def main():
     fig = make_lda_figure(scores_lda, y_lda,
                           f"LDA — TUAB eval (n={len(y_lda)})\n"
                           "fit on train (2717 rec) → projected on eval (honest)")
-    save(fig, os.path.join(args.out, "lda_tuab.png"))
+    save(fig, os.path.join(args.out, "lda_honest_tuab.png"))
 
     # ── figure comparative 4-en-1 ────────────────────────────────────────────
     fig = plt.figure(figsize=(22, 5))
@@ -280,7 +280,7 @@ def main():
     ax4.grid(True, alpha=0.3)
     fig.suptitle(f"Espace latent EB-JEPA — {tag}", fontsize=13, fontweight="bold", y=1.02)
     fig.tight_layout()
-    save(fig, os.path.join(args.out, "comparison_3methods.png"))
+    save(fig, os.path.join(args.out, "comparison_4methods_lda_honest.png"))
 
     print(f"\n[viz] Figures sauvegardées dans : {args.out}/", flush=True)
     print("[viz] Fichiers :", flush=True)
