@@ -46,29 +46,10 @@ from eb_jepa.datasets.eeg.dataset import EEGConfig, EEGDataset
 
 
 # --------------------------------------------------------------------------- #
-# Window-level dataset view on top of the probe-mode recordings
+# Window-level dataset view — shared helper supports n_windows=-1 (ALL non-
+# overlapping windows per recording, literature protocol).
 # --------------------------------------------------------------------------- #
-class WindowDataset(torch.utils.data.Dataset):
-    """Flatten probe-mode recordings into labelled [C, T] windows.
-
-    Each probe item is [N, C, T] windows + label; we expand to N windows that all
-    inherit the recording label. Recording index is kept so we can aggregate
-    predictions back to recording level for the apples-to-apples metric.
-    """
-
-    def __init__(self, split, n_windows=16):
-        cfg = EEGConfig(split=split, mode="probe", n_windows=n_windows)
-        self.base = EEGDataset(cfg)
-        self.n_windows = n_windows
-
-    def __len__(self):
-        return len(self.base) * self.n_windows
-
-    def __getitem__(self, idx):
-        rec_i, win_i = divmod(idx, self.n_windows)
-        wins, label, ok = self.base[rec_i]      # wins: [N, C, T] tensor
-        x = wins[win_i]                          # [C, T]
-        return x, int(label), int(rec_i), int(bool(ok))
+from eb_jepa.datasets.eeg.window_dataset import WindowDataset  # noqa: E402
 
 
 def _metrics(y_true, y_pred, y_prob):
@@ -120,7 +101,8 @@ def main():
     ap.add_argument("--weight-decay", type=float, default=1e-4)
     ap.add_argument("--dropout", type=float, default=0.5,
                     help="0.5 is the canonical EEGNet value for cross-subject tasks")
-    ap.add_argument("--n-windows", type=int, default=16)
+    ap.add_argument("--n-windows", type=int, default=-1,
+                    help="-1 = ALL non-overlapping (literature protocol); 16 = legacy")
     ap.add_argument("--num-workers", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()

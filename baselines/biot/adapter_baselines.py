@@ -76,21 +76,11 @@ def build_model(name, n_channels, sample_length, n_classes=2):
 
 
 # --------------------------------------------------------------------------- #
-# Window-level view on probe-mode recordings (patient-disjoint preserved)
+# Window-level view: import the shared WindowDataset that supports both
+#   n_windows=16  (legacy evenly-spaced) AND
+#   n_windows=-1 (ALL non-overlapping windows, literature-canonical eval)
 # --------------------------------------------------------------------------- #
-class WindowDataset(torch.utils.data.Dataset):
-    def __init__(self, split, n_windows=16):
-        cfg = EEGConfig(split=split, mode="probe", n_windows=n_windows)
-        self.base = EEGDataset(cfg)
-        self.n_windows = n_windows
-
-    def __len__(self):
-        return len(self.base) * self.n_windows
-
-    def __getitem__(self, idx):
-        rec_i, win_i = divmod(idx, self.n_windows)
-        wins, label, ok = self.base[rec_i]
-        return wins[win_i], int(label), int(rec_i), int(bool(ok))
+from eb_jepa.datasets.eeg.window_dataset import WindowDataset  # noqa: E402
 
 
 def _metrics(y_true, y_pred, y_prob):
@@ -145,7 +135,9 @@ def main():
     ap.add_argument("--n-channels", type=int, default=19)
     ap.add_argument("--sample-length", type=int, default=2000,
                     help="timesteps per window (sampling_rate*seconds = 200*10)")
-    ap.add_argument("--n-windows", type=int, default=16)
+    ap.add_argument("--n-windows", type=int, default=-1,
+                    help="-1 = ALL non-overlapping (literature protocol, ~175/rec); "
+                         "16 = legacy evenly-spaced subsample (organizers' default)")
     ap.add_argument("--num-workers", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
