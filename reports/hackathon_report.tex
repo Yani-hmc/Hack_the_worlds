@@ -8,11 +8,12 @@
 \usepackage[colorlinks=true,linkcolor=blue!55!black,citecolor=blue!55!black,urlcolor=blue!55!black]{hyperref}
 
 \setlist{itemsep=1pt,topsep=2pt}
+\setlength{\emergencystretch}{3em}
 \definecolor{good}{RGB}{39,134,96}\definecolor{bad}{RGB}{178,34,34}
 \newcommand{\best}[1]{\textbf{#1}}
 
 \title{\vspace{-1.2cm}\textbf{EB-JEPA for Clinical EEG:\\ a Self-Supervised World Model on TUAB and TUEV}}
-\author{Team \texttt{vivatech-slightlyunawarefc} \\ \small Hackathon ``Hack the World(s)'' --- June 2026}
+\author{Team \texttt{vivatech-slightlyunawarefc} \\ \small Hackathon ``Hack the World(s)'': June 2026}
 \date{}
 
 \begin{document}
@@ -28,9 +29,9 @@ EEG window are pushed to a common latent by an invariance term plus an anti-coll
 consistency loss~\cite{engel2020ddsp} and stochastic-process ``stylised-facts'' consistency terms. To make
 the comparison honest we also re-ran \textbf{10 published baselines from their official code} on our exact
 preprocessing. Our best frozen 0.4\,M-parameter convolutional encoder reaches \textbf{0.836 per-recording
-balanced accuracy / 0.913 AUROC} on TUAB --- matching a \emph{supervised} EEGNet and sitting $\sim$1\,pp
+balanced accuracy / 0.913 AUROC} on TUAB, matching a \emph{supervised} EEGNet and sitting $\sim$1\,pp
 below a foundation model (LaBraM-Base, 0.846) that uses $14\times$ the parameters and large-scale
-pretraining --- \emph{without ever seeing a label during representation learning}. A five-stage optimisation
+pretraining, \emph{without ever seeing a label during representation learning}. A five-stage optimisation
 campaign (capacity, augmentation, schedule, loss coefficients, data) and a three-seed stability study yield
 the report's clearest findings: the corruption \emph{mask} is the single most important augmentation, EEG
 SSL prefers \emph{weak} view-invariance, and per-recording balanced accuracy carries $\approx\pm0.02$ seed
@@ -65,7 +66,7 @@ or worse depending on the convention. We use two, and name a third, throughout:
   the \emph{literature convention} (BIOT~\cite{biot}, LaBraM~\cite{labram}, FEMBA~\cite{femba} all report
   per-window), and the only level at which cross-paper numbers are comparable.
   \item \textbf{Per-recording via window (vote / pooling).} When only a per-window classifier is available,
-  one prediction per recording is obtained by aggregating its windows --- either a \emph{majority vote} on
+  one prediction per recording is obtained by aggregating its windows: either a \emph{majority vote} on
   the hard labels, or, as we do, by \emph{mean-pooling the 16 window probabilities} and thresholding. This
   is the clinically meaningful level (one decision per patient) and is typically $\sim$5\,pp more forgiving
   than per-window, because window noise is averaged out.
@@ -75,7 +76,7 @@ or worse depending on the convention. We use two, and name a third, throughout:
   baseline's exact aggregation is not documented.
 \end{itemize}
 \textbf{The two levels are not comparable to each other}; we therefore always report both, and any single
-cross-model ranking (Section~\ref{sec:combined}) fixes one convention --- per-recording-via-window --- for
+cross-model ranking (Section~\ref{sec:combined}) fixes one convention, per-recording-via-window, for
 all rows.
 
 \section{Data}
@@ -88,7 +89,7 @@ and \textbf{276 evaluation} recordings, 19 channels at 200\,Hz, cut into 10\,s w
 per-channel $z$-scored. The eval split is $\sim$45.7\% abnormal (mildly imbalanced), which is why we headline
 \emph{balanced} accuracy. Section~\ref{sec:tuev} additionally uses TUEV (6-class events).
 
-\paragraph{Self-supervised pretraining vs.\ supervised probe --- who sees labels when.} Two regimes coexist
+\paragraph{Self-supervised pretraining vs.\ supervised probe: who sees labels when.} Two regimes coexist
 in this report and must not be conflated:
 \begin{itemize}
   \item \textbf{Self-supervised (SSL) pretraining.} EB-JEPA is trained on the \emph{unlabeled} training
@@ -110,7 +111,7 @@ specific resampling/normalisation; LaBraM uses a learned patch tokeniser with it
 and ShallowConvNet (via \texttt{braindecode}~\cite{braindecode}) expect raw $z$-scored channels. We could not
 re-implement each author's pipeline; instead we took \emph{their official code from their GitHub} and ran it
 on \emph{our} uniform \texttt{TUAB\_PREPROCESSED} inputs with a uniform 20-epoch AdamW recipe. The numbers in
-Section~\ref{sec:sota} are therefore \textbf{not bit-exact paper reproductions} --- a faithful reproduction
+Section~\ref{sec:sota} are therefore \textbf{not bit-exact paper reproductions}; a faithful reproduction
 would require each author's preprocessing script and training schedule (e.g.\ BIOT: 100 epochs; LaBraM:
 50 epochs with layer-decay 0.65). We trade strict reproducibility for a \emph{uniform comparison protocol}.
 All article + GitHub references are collected in \texttt{references.bib} and in the provenance tables below.
@@ -125,6 +126,7 @@ code came from, whether pretrained weights were used (and the parameter count), 
 
 \begin{table}[h]\centering\small
 \setlength{\tabcolsep}{4pt}\renewcommand{\arraystretch}{1.15}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{@{}llcccl@{}}
 \toprule
 \textbf{Method} & \textbf{Paper / code} & \textbf{Params} & \textbf{per-rec BAcc / AUROC} & \textbf{per-win BAcc / AUROC} & \textbf{Training} \\
@@ -140,7 +142,7 @@ ShallowConvNet        & \cite{shallowconvnet} \texttt{braindecode}& 41.7k  & 0.8
 CNN-Transformer       & \cite{cnntransformer} BIOT-bundled        & 3.2M   & 0.802 / 0.885 & 0.742 / 0.819 & scratch \\
 SPaRCNet              & \cite{sparcnet} BIOT-bundled              & 0.79M  & 0.800 / 0.905 & 0.783 / 0.876 & scratch \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \caption{\textbf{TUAB state of the art, all re-run by us from official code on our preprocessing}
 (the \texttt{PROVENANCE\_TABLE.md} ground truth). All pretrained weights used are downloadable directly from
 the official GitHub (BIOT in the git tree, LaBraM via git-LFS); no private channels.}
@@ -150,8 +152,8 @@ the official GitHub (BIOT in the git tree, LaBraM via git-LFS); no private chann
 \textbf{Reading the table.} The field is tightly bunched at 0.80--0.85 per-recording. Only the foundation
 model \textbf{LaBraM-Base leads decisively} (0.846 / 0.926), and it is the only model using external
 large-scale pretraining. The supervised \emph{convolutional} and \emph{attention} baselines (FFCL,
-ContraWR, BIOT, ST-Transformer, EEGNet) cluster around 0.82--0.83. This bunching --- and the fact that even a
-369\,M-parameter LaBraM-Huge tops out near 0.83 per-window in the literature --- already signals that
+ContraWR, BIOT, ST-Transformer, EEGNet) cluster around 0.82--0.83. This bunching, and the fact that even a
+369\,M-parameter LaBraM-Huge tops out near 0.83 per-window in the literature, already signals that
 \textbf{TUAB is close to saturation}, which we return to in Section~\ref{sec:conclusion}.
 
 \section{EB-JEPA}
@@ -164,7 +166,7 @@ EB-JEPA is a \emph{two-view} energy-based instantiation of the JEPA idea~\cite{i
 Starting from a single EEG window $x$, we produce two views by two stochastic corruptions: view
 $a = \mathcal{A}(x)$ and view $b = \mathcal{B}(x)$ (same window, two independent draws of noise / masking /
 outliers, Section~\ref{sec:training}). A \emph{single shared encoder} $f_\theta$ maps both views, and the
-objective drives their latents to coincide --- the encoder learns ``\emph{what is invariant to the
+objective drives their latents to coincide: the encoder learns ``\emph{what is invariant to the
 corruption},'' i.e.\ the underlying neural content rather than the noise. Unlike the original I-JEPA which
 relies on an EMA target and stop-gradient~\cite{ijepa}, our predictor is the identity ($g_\phi=\mathrm{Id}$),
 so the criterion reduces to
@@ -259,8 +261,8 @@ leave-one-out, \emph{(4)} architecture / capacity-matched comparison, \emph{(5)}
 \paragraph{Comparing without a full run (proxy + data-scaling strategy).} To rank configurations cheaply we
 adopt a two-tier data strategy: every candidate is first screened on a \textbf{5\% data} / short-epoch
 budget as a \emph{proxy} to discard clear losers, then only the meaningful survivors are retrained on
-\textbf{100\% of the data}. Section~\ref{sec:robust} shows that this is well-founded for our conv encoder ---
-pretraining on only 25\% of the recordings costs $<$1\,pp --- so the cheap proxy is predictive of the full
+\textbf{100\% of the data}. Section~\ref{sec:robust} shows that this is well-founded for our conv encoder:
+pretraining on only 25\% of the recordings costs $<$1\,pp, so the cheap proxy is predictive of the full
 run, which let us iterate over the five-stage campaign within the hackathon GPU budget.
 
 \subsection{Inference: the classification head}
@@ -268,7 +270,7 @@ run, which let us iterate over the five-stage campaign within the hackathon GPU 
 
 At inference the encoder is \textbf{frozen} and used purely as a feature extractor. We then classify in one
 of two ways. The headline \emph{frozen} numbers use a \textbf{logistic-regression probe} (a single linear
-layer fit on the train features) --- the literature-standard linear-evaluation protocol, which removes any
+layer fit on the train features): the literature-standard linear-evaluation protocol, which removes any
 probe-capacity confound. As a stronger head we also fit a \textbf{small MLP} (one hidden layer of 256 units,
 dropout 0.3, GELU) on the frozen features. The \emph{fine-tuned} numbers instead unfreeze the encoder and
 train it end-to-end with the head. For the per-recording decision we extract 16 evenly spaced windows per
@@ -302,19 +304,20 @@ Table~\ref{tab:jepa} lists our EB-JEPA runs (the \texttt{reference\_table\_JEPA\
 
 \begin{table}[h]\centering\small
 \setlength{\tabcolsep}{5pt}\renewcommand{\arraystretch}{1.15}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{@{}clccccc@{}}
 \toprule
 \textbf{\#} & \textbf{Energy (SSL objective)} & \textbf{Encoder} & \textbf{Params} & \textbf{Eval} & \textbf{per-rec BAcc / AUROC} & \textbf{per-win BAcc / AUROC} \\
 \midrule
-b & VICReg --- base aug, no corruption        & Conv1D & 0.4M & frozen & 0.796 / 0.888 & 0.756 / --- \\
-1 & \best{VICReg + spectral 0.1}              & Conv1D & 0.4M & frozen & \best{0.836 / 0.887} & 0.765 / --- \\
+b & VICReg: base aug, no corruption        & Conv1D & 0.4M & frozen & 0.796 / 0.888 & 0.756 / -- \\
+1 & \best{VICReg + spectral 0.1}              & Conv1D & 0.4M & frozen & \best{0.836 / 0.887} & 0.765 / -- \\
 2 & \best{SIGReg}                             & Conv1D & 0.4M & frozen & 0.825 / \best{0.913} & \best{0.775 / 0.856} \\
 3 & VICReg                                    & Conv1D & 0.4M & frozen & 0.819\,$\pm$.004 / 0.900\,$\pm$.006 & 0.770 / 0.848 \\
-4 & VICReg                                    & Conv1D & 0.4M & FT     & 0.812\,$\pm$.004 / 0.908\,$\pm$.006 & --- \\
-5 & VICReg (multi-corpus)                     & Transf.& 3.65M& frozen & 0.798 / 0.872 & 0.738 / --- \\
+4 & VICReg                                    & Conv1D & 0.4M & FT     & 0.812\,$\pm$.004 / 0.908\,$\pm$.006 & -- \\
+5 & VICReg (multi-corpus)                     & Transf.& 3.65M& frozen & 0.798 / 0.872 & 0.738 / -- \\
 6 & VICReg + spectral 0.1 + $\Delta z/\Delta z^2$/ACF/sACF & Conv1D & 0.4M & frozen & 0.823\,$\pm$.007 / 0.900\,$\pm$.010 & 0.761\,$\pm$.004 / 0.841\,$\pm$.004 \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \caption{\textbf{EB-JEPA on TUAB} (\texttt{reference\_table\_JEPA\_V1}). $\pm$ = 3-seed std; other rows
 single-seed. ``FT'' = fine-tuned end-to-end; all other rows are a frozen encoder + logistic probe.}
 \label{tab:jepa}
@@ -322,10 +325,10 @@ single-seed. ``FT'' = fine-tuned end-to-end; all other rows are a frozen encoder
 
 \textbf{Reading the table.} The best frozen result is \textbf{0.836 / 0.887} (row 1, VICReg + spectral), and
 SIGReg (row 2) gives the best AUROC (0.913) and best per-window (0.775 / 0.856). Crucially, fine-tuning
-(row 4, 0.812) does \emph{not} beat the frozen probe --- the SSL features are already strong, and end-to-end
+(row 4, 0.812) does \emph{not} beat the frozen probe: the SSL features are already strong, and end-to-end
 training adds nothing on this small encoder. The four stylised-facts terms (row 6) land on the same plateau
 as the simpler energies (0.823). \textbf{Our frozen SSL encoder ties a supervised EEGNet} (0.824, Table~1)
-and lands $\sim$1\,pp below the LaBraM foundation model --- with no labels in pretraining. Every variant on
+and lands $\sim$1\,pp below the LaBraM foundation model, with no labels in pretraining. Every variant on
 the 0.4\,M conv plateaus at per-recording $\approx0.82$, which motivates the robustness study.
 
 \subsection{Robustness: ablations, seed stability, and hyperparameter tuning}
@@ -337,35 +340,36 @@ Table~\ref{tab:robust} (the \texttt{reference\_table\_robustness\_V1} ground tru
 
 \begin{table}[h]\centering\small
 \setlength{\tabcolsep}{5pt}\renewcommand{\arraystretch}{1.15}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{@{}llccc@{}}
 \toprule
-\textbf{\#} & \textbf{Test --- configuration vs.\ tuned model} & \textbf{Params} & \textbf{per-rec BAcc / AUROC} & \textbf{per-win BAcc / AUROC} \\
+\textbf{\#} & \textbf{Test: configuration vs.\ tuned model} & \textbf{Params} & \textbf{per-rec BAcc / AUROC} & \textbf{per-win BAcc / AUROC} \\
 \midrule
 1  & \textbf{Tuned model} (seed 0): Conv, VICReg+spectral 0.1+corruption, inv=1, no jitter, 20 ep & 1.35M & 0.824 / 0.896 & 0.755 / 0.839 \\
-1b & \textbf{Tuned --- 3-seed} (mean$\pm$std)            & 1.35M & 0.812\,$\pm$.021 / 0.898\,$\pm$.002 & 0.756\,$\pm$.001 / 0.836\,$\pm$.005 \\
+1b & \textbf{Tuned: 3-seed} (mean$\pm$std)            & 1.35M & 0.812\,$\pm$.021 / 0.898\,$\pm$.002 & 0.756\,$\pm$.001 / 0.836\,$\pm$.005 \\
 2  & \textbf{Robustness}: pretrain on \textbf{25\%} of recordings (4$\times$ less data) & 1.35M & \textcolor{good}{0.816} / 0.895 & 0.762 / 0.842 \\
 3  & \textbf{HP tuning}: invariance weight inv=25 (VICReg default) instead of 1 & 1.35M & \textcolor{bad}{0.804} / 0.884 & 0.730 / 0.813 \\
 4  & \textbf{Ablation}: remove the corruption \textbf{mask} (outliers only)      & 1.35M & \textcolor{bad}{0.796} / 0.891 & 0.762 / 0.841 \\
 5  & \textbf{Ablation}: \textbf{Transformer} encoder at equal capacity            & 1.29M & \textcolor{bad}{0.725} / 0.804 & 0.652 / 0.708 \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \caption{\textbf{Robustness, hyperparameter tuning and ablation} (\texttt{reference\_table\_robustness\_V1}).
 Rows 1--5 single-seed; row 1b is 3-seed mean$\pm$std.}
 \label{tab:robust}
 \end{table}
 
 \paragraph{Seed \& training stability (the key caveat).} Re-running the tuned model with three seeds
-(row 1b) revealed that \textbf{per-recording BAcc carries $\approx\pm0.02$ seed noise} --- one seed dipped to
-0.788 while the others sat at 0.824 --- because the eval set is only 276 recordings and BAcc is
+(row 1b) revealed that \textbf{per-recording BAcc carries $\approx\pm0.02$ seed noise}: one seed dipped to
+0.788 while the others sat at 0.824, because the eval set is only 276 recordings and BAcc is
 threshold-sensitive. In contrast \emph{per-window} BAcc ($\pm.001$) and AUROC ($\pm.002$) are essentially
 deterministic. The consequence is sobering: \textbf{the $<$3\,pp per-recording gaps that separate
 rows 2--4 (and most of our campaign) sit within seed noise}; only the $-10$\,pp architecture gap (row 5) is
 statistically unambiguous. We therefore rank configurations on per-window / AUROC, not single-seed
-per-recording. We observed no representation collapse on any reported run --- the VICReg variance/covariance
+per-recording. We observed no representation collapse on any reported run: the VICReg variance/covariance
 terms keep per-feature std well above the $\gamma$ margin throughout training, and the loss decreases
 monotonically.
 
-\paragraph{Hyperparameter tuning --- a genuine finding.} The invariance weight is the one hyperparameter that
+\paragraph{Hyperparameter tuning: a genuine finding.} The invariance weight is the one hyperparameter that
 \emph{moves the needle in a reproducible direction}: a full sweep gives a \textbf{monotonic curve
 $\mathrm{inv}=1\ (0.824) > 5\ (0.820) > 10\ (0.814) > 25\ (0.804)$}. VICReg's vision default (25) is
 $\sim$2--3\,pp \emph{worse} than $\mathrm{inv}=1$ on EEG ($\approx6\sigma$ across three seeds): \textbf{EEG
@@ -373,26 +377,27 @@ SSL prefers \emph{weak} view-invariance}, letting the anti-collapse terms domina
 original, non-obvious result.
 
 \paragraph{Ablations.} (i) \emph{Augmentation leave-one-out:} removing each augmentation in turn ranks their
-importance by the drop they cause --- \textbf{corruption mask ($-2.8$\,pp) $>$ outliers ($-1.8$) $>$ noise
+importance by the drop they cause: \textbf{corruption mask ($-2.8$\,pp) $>$ outliers ($-1.8$) $>$ noise
 ($-1.2$) $>$ channel-drop ($-1.0$) $>$ scale-jitter ($+0.2$, i.e.\ dead weight)}. The corruption mask is the
 single biggest lever; scale-jitter and (per Table~\ref{tab:jepa}, row 6 vs.\ 1) the stylised-facts terms add
 nothing. (ii) \emph{Capacity-matched architecture:} at an equal $\sim$1.3\,M parameters the from-scratch
-Transformer is \textbf{10\,pp worse} than the conv (row 5) --- decisive evidence that, at our scale and
+Transformer is \textbf{10\,pp worse} than the conv (row 5): decisive evidence that, at our scale and
 20-epoch budget, the conv wins and the gap to SOTA transformers is \emph{pretraining corpus + schedule, not
-architecture}. (iii) \emph{Data scaling:} 4$\times$ less pretraining data costs only 0.8\,pp (row 2) --- the
+architecture}. (iii) \emph{Data scaling:} 4$\times$ less pretraining data costs only 0.8\,pp (row 2); the
 encoder is not data-starved and saturates early.
 
 \section{Combined results: baselines vs.\ EB-JEPA}
 \label{sec:combined}
 
-Table~\ref{tab:combined} fixes one scoring convention --- \textbf{per-recording via window} --- and lists the
+Table~\ref{tab:combined} fixes one scoring convention, \textbf{per-recording via window}, and lists the
 strongest baselines next to our strongest EB-JEPA models, with whether the model was fine-tuned or used as a
 frozen SSL encoder. We report balanced accuracy (BAcc): at the 51/49 TUAB balance it is the appropriate
 accuracy-type score, and it is the only one available for every baseline (plain ACC, where we have it for our
-own models, is e.g.\ 0.830 for the frozen VICReg+corruption model --- essentially BAcc + 0.5\,pp).
+own models, is e.g.\ 0.830 for the frozen VICReg+corruption model, essentially BAcc + 0.5\,pp).
 
 \begin{table}[h]\centering\small
 \setlength{\tabcolsep}{6pt}\renewcommand{\arraystretch}{1.2}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{@{}lcccc@{}}
 \toprule
 \textbf{Model} & \textbf{BAcc} & \textbf{AUROC} & \textbf{Scoring style} & \textbf{Fine-tuned vs.\ frozen SSL} \\
@@ -408,7 +413,7 @@ EEGNet \cite{eegnet}               & 0.824 & 0.913 & per-rec via window & superv
 \best{EB-JEPA} (VICReg, 3-seed frozen)        & 0.812\,$\pm$.021 & 0.898 & per-rec via window & \best{frozen SSL} \\
 \best{EB-JEPA} (VICReg, fine-tuned)           & 0.812\,$\pm$.004 & 0.908 & per-rec via window & fine-tuned \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \caption{\textbf{Best baselines vs.\ best EB-JEPA}, all per-recording-via-window. Our frozen SSL encoder
 (0.836 / 0.913 across two configs) sits inside the supervised cluster and $\sim$1\,pp below the LaBraM
 foundation model, \emph{without using any label during representation learning}.}
@@ -416,7 +421,7 @@ foundation model, \emph{without using any label during representation learning}.
 \end{table}
 
 \noindent The headline of this report: a \textbf{0.4\,M-parameter self-supervised conv} reaches the
-supervised cluster on TUAB and lands just below a 5.8\,M foundation model, with no labels in pretraining ---
+supervised cluster on TUAB and lands just below a 5.8\,M foundation model, with no labels in pretraining:
 a competitive and cheap result, whose main limit is the near-saturation of TUAB itself.
 
 \section{The harder benchmark: TUEV}
@@ -426,7 +431,7 @@ a competitive and cheap result, whose main limit is the near-saturation of TUAB 
 TUEV is a 6-class \emph{event} benchmark (SPSW, GPED, PLED, EYEM, ARTF, BCKG), much harder and class-imbalanced.
 Table~\ref{tab:tuev_sota} (the \texttt{PROVENANCE\_TABLE\_TUEV.md} ground truth) reports the 7 BIOT-bundled
 baselines re-run by us on BIOT's official \texttt{process.py} pipeline (per-event 5\,s windows, 16-channel
-bipolar montage), alongside the cited LaBraM numbers (which we could \emph{not} re-run --- they require
+bipolar montage), alongside the cited LaBraM numbers (which we could \emph{not} re-run: they require
 $\sim$5{,}000\,h of external pretraining, out of hackathon reach, and use a different preprocessing path).
 
 \begin{table}[h]\centering\small
@@ -435,9 +440,9 @@ $\sim$5{,}000\,h of external pretraining, out of hackathon reach, and use a diff
 \toprule
 \textbf{Method} & \textbf{Params} & \textbf{Our BAcc / $\kappa$ / W-F1} & \textbf{Lit.\ BAcc / $\kappa$ / W-F1} \\
 \midrule
-LaBraM-Huge \cite{labram}  & 369M & --- (not re-run) & \best{0.6616 / 0.6745 / 0.8329} \\
-LaBraM-Large \cite{labram} & 46M  & --- (not re-run) & 0.6581 / 0.6622 / 0.8315 \\
-LaBraM-Base \cite{labram}  & 5.8M & --- (not re-run) & 0.6409 / 0.6637 / 0.8312 \\
+LaBraM-Huge \cite{labram}  & 369M & -- (not re-run) & \best{0.6616 / 0.6745 / 0.8329} \\
+LaBraM-Large \cite{labram} & 46M  & -- (not re-run) & 0.6581 / 0.6622 / 0.8315 \\
+LaBraM-Base \cite{labram}  & 5.8M & -- (not re-run) & 0.6409 / 0.6637 / 0.8312 \\
 \midrule
 BIOT (pretrained) \cite{biot}      & 3.2M & \best{0.5009 / 0.4639 / 0.7128} & 0.5281 / 0.5273 / 0.7492 \\
 BIOT (scratch) \cite{biot}         & 3.2M & 0.4994 / 0.3834 / 0.6507 & 0.4682 / 0.4482 / 0.7085 \\
@@ -469,7 +474,7 @@ the 6-class macro-average recall; chance is $1/6=0.167$.
 
 \subsection{EB-JEPA on TUEV (frozen transfer)}
 We do \emph{not} train on TUEV. We take the TUAB-pretrained encoder, freeze it, and fit a class-balanced
-logistic probe on TUEV's event windows --- a pure representation-transfer test (Table~\ref{tab:tuev_jepa},
+logistic probe on TUEV's event windows: a pure representation-transfer test (Table~\ref{tab:tuev_jepa},
 the \texttt{reference\_table\_JEPA\_TUEV\_V1} ground truth).
 
 \begin{table}[h]\centering\small
@@ -478,7 +483,7 @@ the \texttt{reference\_table\_JEPA\_TUEV\_V1} ground truth).
 \toprule
 \textbf{\#} & \textbf{Energy (SSL objective)} & \textbf{Encoder} & \textbf{Eval} & \textbf{TUEV BAcc} \\
 \midrule
-b & VICReg --- base aug, no corruption        & Conv1D 0.4M & frozen & 0.381 \\
+b & VICReg: base aug, no corruption        & Conv1D 0.4M & frozen & 0.381 \\
 1 & \best{VICReg + spectral 0.1 + corrupt}    & Conv1D 0.4M & frozen & \best{0.425} \\
 2 & VICReg + corrupt                          & Conv1D 0.4M & frozen & 0.382 \\
 3 & SIGReg + corrupt                          & Conv1D 0.4M & frozen & 0.363 \\
@@ -494,7 +499,7 @@ on TUEV}.}
 (0.167) and the random-encoder floor (0.337), so \textbf{the TUAB-learned representation genuinely transfers}
 to a different EEG task with no TUEV labels. Remarkably it \emph{beats} two supervised baselines from
 Table~\ref{tab:tuev_sota} that \emph{were} trained on TUEV (CNN-Transformer 0.410, ST-Transformer 0.339).
-It nonetheless trails the trained BIOT/LaBraM models by a wide margin --- which is expected for frozen,
+It nonetheless trails the trained BIOT/LaBraM models by a wide margin, which is expected for frozen,
 cross-task transfer.
 
 \subsection{Limitations of the TUEV experiment}
@@ -515,16 +520,16 @@ corruption mask is the dominant augmentation, (c) per-recording BAcc on 276 reco
 be read with $\pm0.02$ error bars, and (d) at equal capacity a from-scratch conv beats a from-scratch
 transformer.
 
-\paragraph{Limitations.} (1) \textbf{TUAB is near-saturated} --- a 369\,M LaBraM-Huge tops out near 0.83
+\paragraph{Limitations.} (1) \textbf{TUAB is near-saturated}: a 369\,M LaBraM-Huge tops out near 0.83
 per-window, so model differences wash out and our ``ties EEGNet'' headline partly reflects the benchmark's
 ceiling. (2) Our headline single-seed numbers (0.836) are on the optimistic side of the $\pm0.02$ seed band;
 the 3-seed mean is 0.812. (3) The spectral coefficient of row~1 was selected on the eval set, a mild
-test-set leak we flag. (4) We never reached a large encoder \emph{with} large-scale pretraining --- the one
-configuration that demonstrably beats the plateau (LaBraM) --- so ``capacity is the binding constraint''
+test-set leak we flag. (4) We never reached a large encoder \emph{with} large-scale pretraining: the one
+configuration that demonstrably beats the plateau (LaBraM), so ``capacity is the binding constraint''
 remains an inference, not a controlled result on our own stack.
 
 \paragraph{Future work.} (1) Turn the inv-coefficient result into a published ablation across objectives
-(VICReg vs.\ SIGReg $\times$ inv $\in\{1,5,10,25\}$, multi-seed) --- ``weak invariance helps EEG SSL'' is
+(VICReg vs.\ SIGReg $\times$ inv $\in\{1,5,10,25\}$, multi-seed): ``weak invariance helps EEG SSL'' is
 genuinely novel. (2) \textbf{Pivot off TUAB} to TUEV/TUSZ where there is real headroom and the SSL value
 would show. (3) Scale the encoder \emph{with} multi-corpus pretraining (TUAB+TUEV+TUSZ+TUEP) to test whether
 capacity or corpus is the true lever. (4) Add a predictive (temporal) JEPA head~\cite{vjepa} for a genuine
