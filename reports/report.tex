@@ -5,7 +5,7 @@
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage{hyperref}
-\usepackage{microtype}
+\usepackage[expansion=false]{microtype}
 \usepackage{caption}
 \usepackage{subcaption}
 \usepackage[T1]{fontenc}
@@ -123,15 +123,15 @@ is \textbf{0.775}, which is below both BIOT (0.802) and LaBraM-Base (0.814).
 \begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{figures/comparison_dual.png}
-  \caption{Left: per-window results — the only fair comparison to the literature.
-           Right: per-recording — our-side only, not comparable to published numbers.
+  \caption{Left: per-window results: the only fair comparison to the literature.
+           Right: per-recording: our-side only, not comparable to published numbers.
            \textbf{Our best per-window: BACC 0.775 (SIGReg+corruption).}}
   \label{fig:comparison}
 \end{figure}
 
 \begin{table}[h]
 \centering
-\caption{Main results — per-window BACC / AUROC (fair comparison to literature)}
+\caption{Main results: per-window BACC / AUROC (fair comparison to literature)}
 \small
 \begin{tabular}{lccl}
 \toprule
@@ -142,10 +142,10 @@ BIOT (pretrained) & 0.802 & 0.874 & Literature (BIOT Table 4) \\
 LaBraM-Base & 0.814 & 0.902 & Literature (LaBraM Table 2) \\
 LaBraM-Huge & 0.826 & 0.916 & Literature \\
 \midrule
-\textbf{Ours — EB-JEPA base (frozen)} & \textbf{0.756} & 0.845 & Our run \\
-\textbf{Ours — +corruption (frozen)} & \textbf{0.770} & 0.848 & Our run \\
-\textbf{Ours — +spectral (frozen)} & 0.765 & 0.849 & Our run \\
-\textbf{Ours — +corruption SIGReg} & \textbf{0.775} & \textbf{0.856} & Our best \\
+\textbf{Ours: EB-JEPA base (frozen)} & \textbf{0.756} & 0.845 & Our run \\
+\textbf{Ours: +corruption (frozen)} & \textbf{0.770} & 0.848 & Our run \\
+\textbf{Ours: +spectral (frozen)} & 0.765 & 0.849 & Our run \\
+\textbf{Ours: +corruption SIGReg} & \textbf{0.775} & \textbf{0.856} & Our best \\
 EEGNet (supervised, ours) & 0.796 & 0.882 & Our reimplementation \\
 \bottomrule
 \end{tabular}
@@ -170,15 +170,15 @@ $+$0.03 Cohen-$\kappa$), confirming it captures structure beyond recording-level
 Key findings:
 \begin{itemize}
   \item \textbf{Corruption augmentation} $+$0.014 BACC over base (per-window).
-  \item \textbf{SIGReg $>$ VICReg}: $+$0.005 per-window, $+$0.009 AUROC — consistent with
+  \item \textbf{SIGReg $>$ VICReg}: $+$0.005 per-window, $+$0.009 AUROC, consistent with
     EB-JEPA paper's ``SIGReg $\geq$ VICReg'' finding.
   \item \textbf{Scaling did not help} (150 ep, deeper encoder): per-window flat at 0.768;
     the bottleneck is encoder capacity, not training time.
-  \item \textbf{Masked-prediction JEPA} (EMA target + GRU predictor): BACC 0.682 —
+  \item \textbf{Masked-prediction JEPA} (EMA target + GRU predictor): BACC 0.682,
     significantly worse. A frozen global-pool readout is poorly matched to a
     frame-prediction objective; needs per-frame probing or more tuning.
   \item \textbf{Multi-corpus pretraining} (4$\times$ data): frozen 0.812 per-recording,
-    fine-tuned 0.812 — identical to TUAB-only fine-tuned (0.812).
+    fine-tuned 0.812, identical to TUAB-only fine-tuned (0.812).
     Binding constraint is encoder capacity, not data quantity.
 \end{itemize}
 
@@ -203,7 +203,7 @@ With old coefficients, EEGPT's invariance loss was stuck at $0.103$ at epoch 19
     enough to close the view gap despite the bottleneck.
 \end{enumerate}
 With the corrected coefficients $(25,25,1)$, EEGPT's invariance loss reaches $0.018$
-by epoch 11 (vs old epoch-19 value of $0.103$) — see Figure~\ref{fig:fix}.
+by epoch 11 (vs old epoch-19 value of $0.103$); see Figure~\ref{fig:fix}.
 
 \begin{figure}[h]
   \centering
@@ -215,7 +215,7 @@ by epoch 11 (vs old epoch-19 value of $0.103$) — see Figure~\ref{fig:fix}.
 
 \section{Why the Per-Window Mistake Matters}
 
-The per-recording vs per-window confusion is not merely a bookkeeping error — it reveals
+The per-recording vs per-window confusion is not merely a bookkeeping error: it reveals
 a genuine tension in EEG benchmarking:
 
 \begin{itemize}
@@ -226,14 +226,14 @@ a genuine tension in EEG benchmarking:
     per-window to report higher $n$ and lower variance, making the benchmark
     look more powerful than the clinical task demands.
   \item \textbf{Our honest position}: per-window 0.775 (below BIOT/LaBraM); per-recording
-    0.819 with a frozen probe and 0.812 with fine-tuning (both 3-seed, final epoch) --- a
+    0.819 with a frozen probe and 0.812 with fine-tuning (both 3-seed, final epoch), a
     statistical tie with supervised EEGNet (per-recording 0.812). An earlier best-epoch
     reading of 0.837 was test-set peeking and is retracted.
 \end{itemize}
 
 \section{Conclusion}
-EB-JEPA applied to EEG reaches per-window BACC 0.775 with corruption augmentation and SIGReg
-— competitive with simple supervised baselines and established SSL methods like ContraWR,
+EB-JEPA applied to EEG reaches per-window BACC 0.775 with corruption augmentation and SIGReg,
+competitive with simple supervised baselines and established SSL methods like ContraWR,
 but below BIOT and LaBraM at the fair comparison level.
 
 \paragraph{What works.} Corruption augmentation. SIGReg. Strided Conv1D encoder (simple,
