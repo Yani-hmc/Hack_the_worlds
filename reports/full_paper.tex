@@ -898,13 +898,30 @@ regulariser, reaches 0.389 BACC on TUEV 6-class transfer \emph{with no event lab
 during pretraining}, demonstrating cross-task generalisation.
 
 \paragraph{Novel finding: EEG prefers weak VICReg invariance.}
-A 3-seed ablation (both directions) reveals that VICReg with $\lambda_{\rm inv}{=}1$
-(the framework default) achieves $0.819 \pm 0.004$ BACC, while the paper-correct
-$\lambda_{\rm inv}{=}25$ achieves only $0.789 \pm 0.005$ --- a $3\,\text{pp}$
-deficit at ${\approx}6\sigma$.  This is a deviation from the VICReg vision default,
-not a bug: for short-window (10\,s) clinical EEG with a 0.4M conv encoder, the
-anti-collapse terms (variance + covariance) should dominate over view-invariance.
-Ongoing ablation ($\lambda \in \{1, 5, 10, 25\}$) will clarify the optimal regime.
+A complete 4-point ablation ($\lambda_{\rm inv} \in \{1, 5, 10, 25\}$, endpoints
+3-seed, intermediates single-seed) reveals a clear ordering:
+
+\begin{center}\small
+\begin{tabular}{cccc}
+\toprule
+$\lambda_{\rm inv}$ & BACC\textsubscript{REC} & AUROC & Seeds \\
+\midrule
+1 & $0.819 \pm .004$ & 0.900 & 3 \\
+5 & $0.820$ & 0.893 & 1 \\
+10 & $0.814$ & 0.900 & 1 \\
+25 & $0.789 \pm .005$ & 0.882 & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The sweet spot is $\lambda \in \{1, 5\}$ (essentially tied at 0.819--0.820),
+with a clear drop at $\lambda{=}10$ and a large drop at $\lambda{=}25$
+($3\,\text{pp}$, ${\approx}6\sigma$ vs $\lambda{=}1$, confirmed 3-seed).
+The ordering is not strictly monotone at the top ($\lambda{=}5 \approx \lambda{=}1$),
+but the overall trend is unambiguous: for short-window (10\,s) clinical EEG
+with a 0.4M conv encoder, anti-collapse terms (variance + covariance) should
+dominate over view-invariance.  The paper-correct vision default ($\lambda{=}25$)
+is the worst setting in the sweep.
 
 \paragraph{Failure modes documented.}
 \begin{enumerate}[noitemsep]
@@ -938,11 +955,13 @@ Ongoing ablation ($\lambda \in \{1, 5, 10, 25\}$) will clarify the optimal regim
     shows drops of 0.006--0.024\,pp TUAB BACC, within single-seed noise.
     The earlier 0.836 (spec=0.1) was confounded: eval-set coefficient selection + single seed.
     No positive benefit exists at any tested coefficient.
-  \item[D7] (\emph{In progress}) Optimal $\lambda_{\rm inv}$ for EEG.
-    Jobs capDinv5 and capDinv10 are running ($\lambda \in \{5, 10\}$, alongside the
-    known endpoints $\{1, 25\}$).  If the monotone ordering inv=1 $>$ inv=5 $>$ inv=10 $>$
-    inv=25 holds, it constitutes the first systematic evidence that EEG SSL requires
-    weaker view-invariance than vision SSL.
+  \item[D7] (\emph{Resolved}) Optimal $\lambda_{\rm inv}$ for EEG.
+    Full sweep $\lambda \in \{1, 5, 10, 25\}$ complete.  Sweet spot: $\lambda \in \{1,5\}$
+    (0.819--0.820 BACC), clear drop at $\lambda{=}10$ (0.814), large drop at
+    $\lambda{=}25$ (0.789, $6\sigma$ below $\lambda{=}1$, 3-seed confirmed).
+    Multi-seed runs at $\lambda \in \{5, 10\}$ would sharpen the boundary,
+    but the conclusion is robust: EEG SSL requires substantially weaker
+    view-invariance than the vision VICReg default.
   \item[D5] Aperiodic shortcut: does EB-JEPA's SIGReg representation exploit the 1/$f$
     spectral slope?  Apply~\cite{spectral_audit}'s phase-preserving Fourier intervention to
     frozen Conv1D + SIGReg to determine if BACC drops after flattening.

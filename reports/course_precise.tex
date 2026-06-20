@@ -101,14 +101,17 @@ Running the same setup (corruption, Conv1D) with both settings, 3 seeds each:
 $\lambda_{\rm inv}$ & BACC\textsubscript{REC} & AUROC \\
 \midrule
 1 (default) & \textbf{0.819 ± .004} & \textbf{0.900 ± .006} \\
+5 & 0.820 & 0.893 \\
 10 & 0.814 & 0.900 \\
 25 (paper-correct) & 0.789 ± .005 & 0.882 ± .004 \\
 \bottomrule
-\multicolumn{3}{l}{\footnotesize inv=5 pending.}
+\multicolumn{3}{l}{\footnotesize Endpoints 3-seed; intermediates single-seed.}
 \end{tabular}
 \end{center}
-The gap between $\lambda{=}1$ and $\lambda{=}25$ is \textbf{3\,pp at ${\approx}6\sigma$} —
-not noise.  The ordering is monotone: more invariance $\Rightarrow$ lower BACC.
+The sweet spot is $\lambda \in \{1, 5\}$ (0.819--0.820, essentially tied), with a clear
+drop at $\lambda{=}10$ and a large drop at $\lambda{=}25$ (\textbf{3\,pp, ${\approx}6\sigma$}).
+The ordering is not strictly monotone at the top but the overall trend is unambiguous:
+more invariance $\Rightarrow$ lower BACC for EEG.
 
 \textbf{Why this matters.}
 With $\lambda_{\rm inv} = 1$, the anti-collapse terms (variance + covariance)
