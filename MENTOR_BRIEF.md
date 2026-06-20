@@ -24,7 +24,8 @@ data** (BIOT, LaBraM, + the 5 BIOT-repo baselines), so every comparison is apple
 → **Per-window we sit in the lower-middle of the pack (≈ ContraWR), ~4 pp below LaBraM.** We do *not* match/beat SOTA. ⚠ = see "confounds" below.
 
 **Per-recording** (16-window vote-pool; clinical, the metric we'd actually deploy; everything below
-run **by us from source**, verified against the job logs):
+run **by us from source** — full per-model code+weights provenance in
+[`examples/eeg/PROVENANCE_TABLE.md`](examples/eeg/PROVENANCE_TABLE.md), numbers verified against the job logs):
 
 | Model | BAcc / AUROC | | Model | BAcc / AUROC |
 |---|---|---|---|---|
@@ -55,4 +56,4 @@ epoch, no labels in pretraining) and lands ~2 pp below the foundation model. Att
 4. **Is "a 0.4M self-supervised conv matches supervised EEGNet without labels" a competitive result**, or do we need to scale the encoder + multi-corpus pretrain to be interesting?
 5. **What would make this stand out** — a clean ablation, a new augmentation, a better probe, a different dataset?
 
-*Sources of truth in the repo:* per-window literature → [`examples/eeg/SOTA_TABLE.md`](examples/eeg/SOTA_TABLE.md) (PDFs in `examples/eeg/papers/`); per-recording panel → [`examples/eeg/PER_RECORDING_TABLE.md`](examples/eeg/PER_RECORDING_TABLE.md); full paper → `reports/research_paper.pdf`; self-audit → `reports/AUDIT.md`.
+*Authoritative reference (any number defers to it):* [`examples/eeg/PROVENANCE_TABLE.md`](examples/eeg/PROVENANCE_TABLE.md) — per-model code+weights provenance + per-window/per-recording numbers. Other: per-window literature → [`SOTA_TABLE.md`](examples/eeg/SOTA_TABLE.md) (PDFs in `examples/eeg/papers/`); full paper → `reports/research_paper.pdf`; self-audit → `reports/AUDIT.md`.
