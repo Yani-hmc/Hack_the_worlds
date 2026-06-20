@@ -45,7 +45,7 @@ epoch, no labels in pretraining) and lands ~2 pp below the foundation model. Att
 ## What's solid vs what's confounded (we're being upfront)
 **Solid:** literature table (every cell PDF-verified) · the from-source per-recording panel (log-verified) · EEGNet fairness · the peeking retraction.
 **Confounded (open):**
-1. **Headline JEPA numbers used a buggy objective** — invariance was weighted 1× not the paper-correct 25×. *Code is now fixed; the corrected-objective run is in flight as of this session — number pending.*
+1. **VICReg invariance weight — a *finding*, not just a bug.** Our runs used `inv_coeff=1`, not VICReg's vision-default 25. We re-ran with the paper-default 25 → **~4 pp WORSE** (per-rec 0.785 vs 0.819; per-win 0.734 vs 0.770). So the deviation **helps, doesn't inflate** — this EEG SSL prefers *weaker* view-invariance (anti-collapse var/cov terms dominating). We now disclose `inv_coeff=1` as a deliberate, better-than-default choice. *(1 clean seed; gap ≈ 8σ of the seed spread; 2 more seeds running to confirm.)*
 2. **Best frozen result (spectral, 0.836)** was selected by an eval-set coefficient sweep → second mild test-set leak; treat as soft.
 3. **"Capacity is the binding constraint"** (multi-corpus + bigger encoder didn't help) is confounded with the objective bug and pretraining scale — not isolated.
 
@@ -55,5 +55,6 @@ epoch, no labels in pretraining) and lands ~2 pp below the foundation model. Att
 3. **TUAB looks near-saturated** (369M LaBraM-Huge tops out at 0.826 per-window). Is it the right benchmark to push, or should we move to TUEV (6-class events) / TUSZ (seizure) where headroom is larger?
 4. **Is "a 0.4M self-supervised conv matches supervised EEGNet without labels" a competitive result**, or do we need to scale the encoder + multi-corpus pretrain to be interesting?
 5. **What would make this stand out** — a clean ablation, a new augmentation, a better probe, a different dataset?
+6. **Surprising result we'd love your read on:** VICReg's invariance weight 25 (the vision default) **underperforms `inv_coeff=1` by ~4 pp** on our EEG SSL — *weaker* view-invariance gives better linear-probe features. Is this a known biosignal/EEG phenomenon, and does it hint at a different SSL-objective design for EEG?
 
 *Authoritative reference (any number defers to it):* [`examples/eeg/PROVENANCE_TABLE.md`](examples/eeg/PROVENANCE_TABLE.md) — per-model code+weights provenance + per-window/per-recording numbers. Other: per-window literature → [`SOTA_TABLE.md`](examples/eeg/SOTA_TABLE.md) (PDFs in `examples/eeg/papers/`); full paper → `reports/research_paper.pdf`; self-audit → `reports/AUDIT.md`.
