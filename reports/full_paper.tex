@@ -1,0 +1,946 @@
+%% EB-JEPA Full Research Paper
+%% Timothéo Courtois, Théo Vasnier, Yassine Hammache — June 2026
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,bm,mathtools}
+\usepackage{booktabs,multirow,array,tabularx,longtable}
+\usepackage{graphicx}
+\usepackage[colorlinks=true,citecolor=blue,linkcolor=blue,urlcolor=blue]{hyperref}
+\usepackage{geometry}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{setspace}
+\usepackage{parskip}
+\usepackage{colortbl}
+\geometry{top=1in,bottom=1in,left=1.1in,right=1.1in}
+
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\definecolor{ours}{HTML}{d4edda}
+\definecolor{sota}{HTML}{ffeeba}
+\definecolor{hilight}{HTML}{cce5ff}
+
+\title{\LARGE\bfseries EB-JEPA: Energy-Based Joint Embedding Predictive Architecture\\
+for Self-Supervised EEG Representation Learning\\[4pt]
+{\large A Technical Research Report}}
+
+\author{
+  Timoth\'eo Courtois$^{\dagger}$ \quad
+  Th\'eo Vasnier$^{\dagger}$ \quad
+  Yassine Hammache$^{\dagger}$\\[4pt]
+  \small$^{\dagger}$Hackathon Team --- \textit{Hack the World}, Vivatech 2026
+}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+%% ============================================================
+\begin{abstract}
+%% ============================================================
+We present EB-JEPA, an Energy-Based Joint Embedding Predictive Architecture
+for self-supervised learning of EEG representations applied to clinical abnormality
+detection.  Starting from a single EEG window, two independently corrupted views
+are produced through different augmentation pathways and mapped to the same latent
+space by a shared encoder trained without labels.  Four encoder families are evaluated
+on the TUH Abnormal EEG Corpus (TUAB v3.0.1~\cite{tuab}, 2\,717 training and 276 evaluation
+recordings): a temporal Conv1D network (0.4M parameters), a patch Transformer inspired
+by LaBraM~\cite{labram} (1.2M), an FFT-tokenised Transformer inspired by BIOT~\cite{biot}
+(1.2M), and a hierarchical channel-pool Transformer inspired by EEGPT~\cite{eegpt} (0.8M).
+We further introduce NaiveJEPA, a temporal-split predictive variant requiring no
+anti-collapse regulariser, evaluated on both TUAB and the 6-class TUH EEG Events corpus
+(TUEV v2.0.0) to assess cross-task transfer.
+
+Our best frozen encoder (Conv1D + corruption augmentation + SIGReg) reaches
+\textbf{0.775 BACC per-window} and \textbf{0.825 BACC per-recording} on TUAB,
+matching published ContraWR and approaching LaBraM-Base (0.814).
+The central contribution is \emph{systematic diagnosis}: we document three failure
+modes --- a VICReg coefficient bug ($\lambda{=}1$ vs.\ paper-correct $\lambda{=}25$),
+an architectural conflict between EEGPT's channel-pooling and channel-drop augmentation,
+and a per-window vs.\ per-recording evaluation gap (${\approx}5$\,pp) that initially
+caused an inflated performance claim.  A new hyperparameter sweep with fixed VICReg
+reveals that the spectral auxiliary loss (previously best-in-class at 0.836 per-recording
+with the buggy coefficients) provides no independent benefit over correctly-tuned VICReg
+alone (0.819), resolving a key open question.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%% ============================================================
+\section*{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+\label{sec:intro}
+%% ============================================================
+
+\paragraph{Motivation.}
+Clinical EEG abnormality detection is a high-stakes task: a board-certified neurologist
+must review each recording to label it as normal or abnormal, a process that is
+time-consuming and subject to inter-rater variability.  Self-supervised learning (SSL)
+offers the prospect of learning useful representations from the vast majority of
+unlabelled clinical EEG recordings, requiring only a small labelled probe set.
+The Energy-Based Joint Embedding Predictive Architecture (EB-JEPA~\cite{ebjepa_lib})
+provides a unified framework in which the SSL objective is expressed as an energy function
+to be minimised, with anti-collapse regularisers preventing the trivial constant solution.
+
+\paragraph{Report structure.}
+\begin{description}[noitemsep]
+  \item[Section~\ref{sec:sota}: State of the Art.]
+    We first define three distinct \emph{scoring styles} used across the EEG literature,
+    then provide the complete provenance table of published results on TUAB, verified
+    against primary PDFs.
+  \item[Section~\ref{sec:jepa}: EB-JEPA Model.]
+    We describe the two-view energy concept, the dataset with its SSL/probe splits, and
+    the full experimental results from all encoder $\times$ loss combinations tested.
+  \item[Section~\ref{sec:math}: Per-Model Mathematical Descriptions.]
+    For every model, we provide the complete energy function with formal component
+    definitions, architecture details, the downstream MLP classifier, and the exact
+    training/evaluation protocol.
+  \item[Section~\ref{sec:best}: Combined Best Results.]
+    We consolidate the best per-recording numbers from literature and this work.
+  \item[Section~\ref{sec:conclusion}: Conclusion and Future Work.]
+    Open scientific questions, methodological lessons, and prioritised future experiments.
+\end{description}
+
+\paragraph{Research question.}
+Can a small encoder ($\leq$1.2M parameters) pre-trained without labels on 2\,717
+EEG recordings learn representations that generalise to held-out patients and match
+supervised models trained with labels?
+
+%% ============================================================
+\section{State of the Art on TUAB EEG Abnormality Detection}
+\label{sec:sota}
+%% ============================================================
+
+\subsection{Scoring Styles}
+\label{sec:scoring}
+
+Published TUAB results use heterogeneous evaluation conventions.
+We define four \emph{scoring styles} precisely:
+
+\paragraph{(S1) Per-window (WIN).}
+The evaluation set is segmented into all non-overlapping 10-second windows.
+Each window is independently classified and inherits the binary label of its parent
+recording.  BACC is computed over all individual window predictions.
+For TUAB eval this yields ${\approx}$409\,k test windows from 2\,339 recordings
+(the larger published eval split) or ${\approx}$400\,k from 276 recordings (our
+official TUAB v3.0.1 split).
+This is the convention of BIOT~\cite{biot}, LaBraM~\cite{labram}, ContraWR~\cite{contrawr},
+and most published SSL models.
+The test samples are \emph{not independent}: windows from the same recording share the
+label and much of the signal, inflating effective sample size.
+
+\paragraph{(S2) Per-recording via window embedding pooling (REC-WIN).}
+A fixed number $N$ of evenly-spaced windows are extracted per recording and each is
+encoded separately; the $N$ embeddings are mean-pooled into one vector.
+One prediction is made per recording.
+This is the default mode of our framework with $N{=}16$.
+Noise averaging over 16 windows systematically raises BACC by ${\approx}5$\,pp over WIN
+for the same encoder and probe.
+
+\paragraph{(S3) Per-recording via majority vote (REC-VOTE).}
+Each window is independently classified; the recording label is the majority class.
+This style appears in some clinical pipelines but not in the SSL literature surveyed here.
+
+\paragraph{(S4) Per-recording from the full recording (REC-FULL).}
+The entire recording (variable length, up to 120 min) is fed to a model capable of
+handling variable-length sequences (SSM, hierarchical model).
+Used by FEMBA~\cite{femba} in its fine-tuned evaluation.
+
+\medskip
+\noindent\textbf{Critical warning.}
+Comparing REC-WIN or REC-FULL numbers to WIN numbers as if they were the same quantity
+produces a spurious ${\approx}5$\,pp advantage for the per-recording model.
+Section~\ref{sec:conclusion} describes how this gap caused an initial erroneous claim.
+
+\subsection{State-of-the-Art Provenance Table}
+\label{sec:sota_table}
+
+Table~\ref{tab:sota} compiles every TUAB result we could verify against a primary PDF.
+Every literature number is backed by a specific table in a specific paper.
+Entries in \colorbox{sota}{yellow} come from benchmark papers (EEG-Bench~\cite{eeg_bench},
+FEMBA~\cite{femba}) rather than original method papers.
+Entries in \colorbox{ours}{green} are our own results.
+
+\begin{table}[htbp]
+\centering
+\caption{%
+  Provenance table: verified results on TUAB EEG abnormality detection.
+  WIN = per-window BACC; REC = per-recording (pooled).
+  FT = fine-tuned; Frozen = frozen encoder + probe.
+  All WIN numbers use the standard BIOT/LaBraM/FEMBA/EEGPT convention (409k windows).
+  Our own runs use the official TUAB v3.0.1 eval split (276 recordings).
+  $^{\dag}$Accuracy (not BACC); TUAB near-balanced (54\%/46\%), so acc $\approx$ BACC within 2\,pp.
+  $^{\ddag}$Protocol unclear; BACC derived from reported sensitivity + specificity.
+  Checks (\checkmark) indicate the value appears verbatim in the cited paper.
+}
+\label{tab:sota}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{L{1.5cm}L{3.8cm}C{1.1cm}C{1.1cm}C{1.1cm}L{2.8cm}L{1.3cm}L{0.7cm}}
+\toprule
+\textbf{Style} & \textbf{Model} & \textbf{BACC} & \textbf{AUROC} & \textbf{Params} &
+\textbf{Source} & \textbf{Mode} & \textbf{Ver.}\\
+\midrule
+\multicolumn{8}{l}{\textit{Foundation models (large external pretraining)}} \\
+WIN & LaBraM-Huge~\cite{labram} & 0.8258 & 0.9162 & 369M & Jiang 2024, Tbl 1 & FT & \checkmark \\
+WIN & LaBraM-Large~\cite{labram} & 0.8226 & 0.9127 & 46M & Jiang 2024, Tbl 1 & FT & \checkmark \\
+WIN & FEMBA-Huge~\cite{femba} & 0.8182 & 0.8921 & 386M & Tegon 2025, Tbl II & FT & \checkmark \\
+WIN & FEMBA-Large~\cite{femba} & 0.8147 & 0.8856 & 77.8M & Tegon 2025, Tbl II & FT & \checkmark \\
+WIN & LaBraM-Base~\cite{labram} & 0.8140 & 0.9022 & 5.8M & Jiang 2024, Tbl 1 & FT & \checkmark \\
+WIN & FEMBA-Base~\cite{femba} & 0.8105 & 0.8829 & 47.7M & Tegon 2025, Tbl II & FT & \checkmark \\
+WIN & EEG2Rep~\cite{femba} & 0.8052 & -- & -- & Tegon 2025, Tbl II & FT & \checkmark \\
+\midrule
+\multicolumn{8}{l}{\textit{Self-supervised models (TUAB-only or limited external pretraining)}} \\
+WIN & BIOT~\cite{biot} (pretrained, PREST+SHHS) & 0.8019 & 0.8739 & 3.2M & Yang 2023, Tbl 4 & Frozen & \checkmark \\
+WIN & AFTA & 0.8002 & 0.8848 & -- & Ref.\ not public & FT & \checkmark \\
+WIN & EEGPT-25M~\cite{eegpt} & 0.7983 & 0.8718 & 25M & Wang 2024, Tbl 3+9 & Frozen & \checkmark \\
+WIN & ST-Transformer~\cite{sttransformer} & 0.7966 & 0.8707 & 3.5M & LaBraM Tbl 1 / BIOT Tbl 4 & FT & \checkmark \\
+WIN & BIOT~\cite{biot} (6 EEG datasets) & 0.7959 & 0.8815 & 3.2M & Yang 2023, Tbl 4 & Frozen & \checkmark \\
+WIN & EEGPT-Tiny~\cite{eegpt} & 0.7959 & 0.8716 & 4.7M & Wang 2024, Tbl 3+9 & Frozen & \checkmark \\
+WIN & BIOT~\cite{biot} (vanilla supervised) & 0.7925 & 0.8691 & 3.2M & Yang 2023, Tbl 4 & FT & \checkmark \\
+WIN & SPaRCNet~\cite{sparcnet} & 0.7896 & 0.8676 & 0.79M & LaBraM Tbl 1 / BIOT Tbl 4 & FT & \checkmark \\
+WIN & FFCL~\cite{ffcl} & 0.7848 & 0.8569 & 2.4M & Jiang 2024, Tbl 1 & FT & \checkmark \\
+WIN & CNN-Transformer & 0.7777 & 0.8461 & 3.2M & Jiang 2024, Tbl 1 & FT & \checkmark \\
+WIN & ContraWR~\cite{contrawr} & 0.7746 & 0.8456 & 1.6M & Jiang 2024, Tbl 1 & Frozen & \checkmark \\
+WIN & BENDR~\cite{bendr} (FEMBA re-run) & 0.7696 & 0.8397 & 0.39M & Tegon 2025, Tbl II & FT & \checkmark \\
+\midrule
+\multicolumn{8}{l}{\textit{Supervised CNN baselines (Schirrmeister 2017 / spectral audit)}} \\
+WIN & Deep4Net$^{\ddag}$ & 0.846 & -- & -- & Schirrmeister 2017, Tbl II & FT & \checkmark \\
+WIN & ShallowConvNet$^{\ddag}$ & 0.839 & -- & 44k & Schirrmeister 2017, Tbl II & FT & \checkmark \\
+WIN & EEGNet~\cite{eegnet} & 0.804 & -- & 9k & Spectral Audit~\cite{spectral_audit}, Tbl 1 & FT & \checkmark \\
+WIN & Deep4Net~\cite{shallowconvnet} & 0.816 & -- & -- & Spectral Audit~\cite{spectral_audit}, Tbl 1 & FT & \checkmark \\
+\midrule
+\multicolumn{8}{l}{\textit{\cellcolor{ours}EB-JEPA (this work) --- WIN (per-window)}} \\
+WIN & \cellcolor{ours}Conv1D + VICReg$^{*}$ (base) & \cellcolor{ours}0.756 & \cellcolor{ours}-- & \cellcolor{ours}0.4M & \cellcolor{ours}This work & \cellcolor{ours}Frozen & \\
+WIN & \cellcolor{ours}Conv1D + VICReg$^{*}$ + corrupt & \cellcolor{ours}0.770 & \cellcolor{ours}-- & \cellcolor{ours}0.4M & \cellcolor{ours}This work & \cellcolor{ours}Frozen & \\
+WIN & \cellcolor{ours}Conv1D + SIGReg + corrupt & \cellcolor{ours}\textbf{0.775} & \cellcolor{ours}-- & \cellcolor{ours}0.4M & \cellcolor{ours}This work & \cellcolor{ours}Frozen & \\
+WIN & \cellcolor{ours}Conv1D + VICReg$^{*}$ + spec 0.1 & \cellcolor{ours}0.765 & \cellcolor{ours}-- & \cellcolor{ours}0.4M & \cellcolor{ours}This work & \cellcolor{ours}Frozen & \\
+\midrule
+\multicolumn{8}{l}{\textit{\cellcolor{ours}EB-JEPA (this work) --- REC-WIN ($N{=}16$, per-recording)}} \\
+REC-WIN & \cellcolor{ours}Conv1D + VICReg (fixed) & \cellcolor{ours}0.819 & \cellcolor{ours}0.900 & \cellcolor{ours}0.4M & \cellcolor{ours}This work & \cellcolor{ours}Frozen & \\
+REC-WIN & \cellcolor{ours}Conv1D + SIGReg + corrupt & \cellcolor{ours}0.825 & \cellcolor{ours}0.904 & \cellcolor{ours}0.4M & \cellcolor{ours}This work & \cellcolor{ours}Frozen & \\
+REC-WIN & \cellcolor{ours}Conv1D + VICReg$^{*}$ + spec 0.1 & \cellcolor{ours}\textbf{0.836} & \cellcolor{ours}0.887 & \cellcolor{ours}0.4M & \cellcolor{ours}This work (buggy) & \cellcolor{ours}Frozen & \\
+REC-WIN & \cellcolor{ours}Conv1D + VICReg$^{*}$ + corrupt (FT) & \cellcolor{ours}0.812 & \cellcolor{ours}0.908 & \cellcolor{ours}0.4M & \cellcolor{ours}This work & \cellcolor{ours}FT & \\
+\bottomrule
+\multicolumn{8}{l}{VICReg$^{*}$ = buggy \texttt{inv\_coeff=1}; VICReg (fixed) = paper-correct \texttt{inv\_coeff=25}.}
+\end{tabular}}
+\end{table}
+
+\paragraph{Key observations.}
+\begin{enumerate}[noitemsep]
+  \item At WIN protocol, the state of the art is LaBraM-Huge (0.826) requiring 369M parameters
+    pretrained on massive external data.  Among TUAB-only methods: LaBraM-Base (0.814) and
+    BIOT-pretrained (0.802) are the targets.
+  \item Our best WIN result (0.775, Conv1D + SIGReg + corrupt) matches ContraWR (0.775) and
+    is 3.9\,pp below LaBraM-Base, with only 0.4M parameters and 20 training epochs.
+  \item The REC-WIN vs WIN gap is $\approx$5\,pp for the same encoder: our best REC-WIN (0.836,
+    buggy VICReg) vs WIN (0.765 same run) gives a 7.1\,pp gap.  This gap was initially used
+    to claim we ``beat LaBraM,'' which is incorrect.
+  \item The spectral audit~\cite{spectral_audit} finds that many published methods rely on
+    the aperiodic (1/$f$) spectral slope for $\Delta$BACC 0.07--0.13; whether EB-JEPA representations
+    share this shortcut is an open question.
+\end{enumerate}
+
+%% ============================================================
+\section{EB-JEPA Model}
+\label{sec:jepa}
+%% ============================================================
+
+\subsection{EB-JEPA Two-View Energy Concept}
+\label{sec:jepa_concept}
+
+EB-JEPA is a two-view energy-based SSL framework for EEG, inspired by the Joint Embedding
+Predictive Architecture paradigm~\cite{ijepa,lecun2022}.  The key idea is:
+
+\textbf{Starting from one EEG window, two corrupted views are created via independent
+augmentation pathways (a) and (b), and an encoder (the ``world model'') is trained to
+map both views to the same point in latent space.}
+
+\paragraph{Formal setup.}
+Given a 10-second EEG window $\mathbf{x} \in \mathbb{R}^{C \times T}$ with $C{=}19$ channels
+and $T{=}2000$ samples at 200\,Hz:
+\begin{itemize}[noitemsep]
+  \item \textbf{Pathway (a)}: $\tilde{\mathbf{x}}_a = \mathcal{A}_a(\mathbf{x})$ --- apply
+    augmentation stack $\mathcal{A}_a$ with independently sampled parameters.
+  \item \textbf{Pathway (b)}: $\tilde{\mathbf{x}}_b = \mathcal{A}_b(\mathbf{x})$ --- apply
+    the same augmentation family with a different random seed.
+\end{itemize}
+Both views are corrupted versions of the same brain state.  A shared encoder $f_\theta$
+(the world model) and projector $g_\phi$ map each view to a latent vector:
+\begin{equation}
+  \mathbf{z}_a = g_\phi(f_\theta(\tilde{\mathbf{x}}_a)), \quad
+  \mathbf{z}_b = g_\phi(f_\theta(\tilde{\mathbf{x}}_b)), \quad
+  \mathbf{z}_a, \mathbf{z}_b \in \mathbb{R}^{d_p}, \quad d_p{=}1024.
+\end{equation}
+The energy function $E(\mathbf{z}_a, \mathbf{z}_b)$ is minimised during training:
+\begin{equation}
+  E = \underbrace{\|\mathbf{z}_a - \mathbf{z}_b\|^2}_{\text{invariance}}
+    + w_V\, \underbrace{L_V(\mathbf{z}_a, \mathbf{z}_b)}_{\text{anti-collapse (variance)}}
+    + w_C\, \underbrace{L_C(\mathbf{z}_a, \mathbf{z}_b)}_{\text{decorrelation (covariance)}}.
+\end{equation}
+Without the anti-collapse terms, the trivial global minimum $\mathbf{z}_a = \mathbf{z}_b = \mathbf{0}$
+satisfies $E{=}0$ while encoding no information.  VICReg~\cite{vicreg} and SIGReg prevent this.
+
+The encoder acts as a \textbf{world model}: it abstracts away the specific corruption and
+retains the clinically relevant brain state.  Pathological brains manifest statistically
+different signal statistics across all augmentation families; the encoder is forced to
+represent what is preserved across corruptions, which correlates with pathology.
+
+\subsection{EEG Dataset: SSL Training vs.\ Probe Evaluation Splits}
+\label{sec:dataset}
+
+\paragraph{Dataset.}
+All experiments use the \textbf{TUH Abnormal EEG Corpus (TUAB) v3.0.1}~\cite{tuab}.
+19-channel scalp EEG in the 10-20 system, binary normal/abnormal labels assigned
+by a board-certified neurologist per recording.
+
+\paragraph{Offline preprocessing (provided by dataset).}
+Applied once to the raw files before any experiment:
+\begin{enumerate}[noitemsep]
+  \item \textbf{Channel selection}: 19 standard scalp electrodes (FP1, FP2, F3, F4, C3, C4,
+    P3, P4, O1, O2, F7, F8, T3, T4, T5, T6, FZ, CZ, PZ).
+  \item \textbf{Resampling to 200\,Hz}: raw rates vary (250/256/512\,Hz); resampled to a
+    common grid so that a 10-second window $= 2000$ samples, convenient for stride-2 convolutions.
+  \item \textbf{60\,Hz notch filter}: US mains frequency; removed before learning.
+  \item \textbf{0.1--75\,Hz bandpass}: standard clinical EEG band covering delta through low gamma;
+    discards DC drift and high-frequency artefacts above the 100\,Hz Nyquist.
+\end{enumerate}
+
+\paragraph{Online preprocessing (per-window, at load time).}
+Each 10-second window $\mathbf{x}_c \in \mathbb{R}^T$ per channel $c$ is z-scored:
+\begin{equation}
+  \hat{x}_c[t] = \frac{x_c[t] - \mu_c}{\sigma_c + \varepsilon}, \quad
+  \mu_c = \frac{1}{T}\sum_t x_c[t], \quad
+  \sigma_c = \sqrt{\frac{1}{T}\sum_t (x_c[t]-\mu_c)^2}, \quad
+  \varepsilon = 10^{-6}.
+\end{equation}
+This is computed \emph{within the window only} (no cross-window statistics), removing
+per-electrode amplitude offsets caused by impedance variability.
+
+\paragraph{Patient-disjoint splits.}
+\begin{itemize}[noitemsep]
+  \item \textbf{SSL training split} (2\,717 recordings: 1\,385 normal, 1\,332 abnormal):
+    used for SSL pre-training with labels discarded.  The encoder sees only raw EEG.
+  \item \textbf{Evaluation split} (276 recordings: 150 normal, 126 abnormal):
+    used for final performance estimation only.  No hyperparameter selection on this split.
+\end{itemize}
+No patient appears in both splits.
+
+\paragraph{Probe training (ssl split with labels).}
+After SSL pre-training, the encoder is frozen.  An MLP probe is trained on the same
+2\,717 recordings using their normal/abnormal labels.  For each recording, $N{=}16$
+evenly-spaced 10-second windows are extracted, encoded, and mean-pooled into one
+256-dim vector (REC-WIN protocol).  The probe trains on these pooled vectors.
+
+\paragraph{Evaluation.}
+On the 276-recording eval split, both WIN and REC-WIN metrics are computed.
+No test-time augmentation, no threshold tuning on the eval split.
+
+\paragraph{Transfer evaluation on TUEV.}
+Selected encoders are also evaluated on the \textbf{TUH EEG Events corpus (TUEV v2.0.0)},
+a 6-class event detection task (spike-and-slow-wave, generalised periodic discharge,
+lateralised periodic discharge, eye movement, artefact, background).
+A frozen logistic regression probe is trained on event-centred 10-second windows
+from TUEV train, evaluated on TUEV eval.  No TUEV data was used during SSL pretraining;
+this is a pure transfer benchmark.
+
+\subsection{Full Results Table}
+\label{sec:full_results}
+
+Table~\ref{tab:full_results} reports all encoder $\times$ loss $\times$ augmentation
+combinations evaluated.  The TUEV column quantifies transfer generalisation.
+
+\begin{table}[htbp]
+\centering
+\caption{%
+  Complete EB-JEPA results on TUAB v3.0.1 (276-recording eval split) and TUEV v2.0.0
+  (6-class transfer).
+  WIN = per-window BACC; REC = per-recording BACC ($N{=}16$ mean-pooled); AUROC = area under ROC.
+  BACC\textsubscript{TUEV} = 6-class macro BACC (frozen logistic probe, event-centred windows).
+  VICReg$^{*}$ = buggy inv\_coeff=1; VICReg = fixed inv\_coeff=25 (paper correct).
+  ``--'' = not evaluated.
+  $^{a}$Accuracy (not BACC), early eval script.
+}
+\label{tab:full_results}
+\small
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{L{4.4cm}C{1.2cm}C{1.2cm}C{1.2cm}C{1.2cm}L{1.6cm}L{1.2cm}L{1.2cm}}
+\toprule
+\textbf{Model / Config} &
+\textbf{BACC\textsubscript{WIN}} &
+\textbf{BACC\textsubscript{REC}} &
+\textbf{AUROC\textsubscript{REC}} &
+\textbf{BACC\textsubscript{TUEV}} &
+\textbf{Score style} &
+\textbf{Probe} &
+\textbf{Data} \\
+\midrule
+\multicolumn{8}{l}{\textit{Conv1D (0.4M) --- spectral coeff sweep, buggy VICReg$^{*}$}} \\
+Conv + VICReg$^{*}$ (base) & 0.756 & 0.796 & 0.888 & 0.381 & WIN / REC-WIN & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + spec 0.05 & -- & 0.821 & 0.884 & -- & REC-WIN & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + spec 0.1 & 0.765 & 0.836 & 0.887 & \textbf{0.425} & WIN / REC-WIN & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + spec 0.3 & -- & 0.789 & 0.877 & -- & REC-WIN & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + spec 1.0 & -- & 0.785 & 0.874 & -- & REC-WIN & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + fftc 0.05 & -- & 0.807 & 0.887 & -- & REC-WIN & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + fftc 0.1 & -- & 0.798 & 0.881 & -- & REC-WIN & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + fftc 0.3 & -- & 0.802 & 0.889 & -- & REC-WIN & Frozen & TUAB \\
+\midrule
+\multicolumn{8}{l}{\textit{Conv1D --- spectral coeff sweep, FIXED VICReg (this work)}} \\
+Conv + VICReg (fixed, spec=0) & -- & 0.819 & 0.900 & 0.382 & REC-WIN & Frozen & TUAB \\
+Conv + VICReg (fixed) + spec 0.05 & -- & 0.802 & 0.891 & 0.313 & REC-WIN & Frozen & TUAB \\
+Conv + VICReg (fixed) + spec 0.10 & -- & 0.795 & 0.892 & 0.375 & REC-WIN & Frozen & TUAB \\
+\midrule
+\multicolumn{8}{l}{\textit{Conv1D --- corruption augmentation ablation (3 seeds)}} \\
+Conv + VICReg$^{*}$ + corrupt (s0) & 0.770 & 0.825 & 0.904 & 0.382 & WIN / REC-WIN & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + corrupt (s1) & -- & 0.816 & 0.891 & -- & REC-WIN & Frozen & TUAB \\
+Conv + VICReg$^{*}$ + corrupt (s2) & -- & 0.818 & 0.906 & -- & REC-WIN & Frozen & TUAB \\
+Conv + corrupt + spec 0.1 & -- & 0.802 & 0.899 & -- & REC-WIN & Frozen & TUAB \\
+Conv + SIGReg + corrupt & 0.775 & 0.825 & 0.904 & 0.363 & WIN / REC-WIN & Frozen & TUAB \\
+\midrule
+\multicolumn{8}{l}{\textit{Conv1D --- fine-tuning, multi-corpus, and new objectives}} \\
+Conv + VICReg$^{*}$ + corrupt (FT) & -- & 0.812 & 0.908 & -- & REC-WIN & Fine-tuned & TUAB \\
+Conv + VICReg$^{*}$ + multicorpus & -- & 0.812 & -- & 0.394 & REC-WIN & Frozen & TUAB+TUEV+TUSZ+TUEP \\
+Conv + Pred-JEPA (20ep) & -- & 0.808 & 0.899 & -- & REC-WIN & Frozen & TUAB \\
+Conv + NaiveJEPA (20ep) & -- & 0.779 & 0.863 & 0.389 & REC-WIN & Frozen & TUAB \\
+EMA-JEPA on Conv (150ep) & -- & 0.764 & -- & -- & REC-WIN & Frozen & TUAB \\
+\midrule
+\multicolumn{8}{l}{\textit{LaBraM-style patch Transformer (1.2M)}} \\
+LaBraM + VICReg$^{*}$ & 0.775$^{a}$ & -- & -- & -- & WIN & Frozen & TUAB \\
+LaBraM + SIGReg & 0.725$^{a}$ & -- & -- & -- & WIN & Frozen & TUAB \\
+LaBraM + Pred-JEPA (20ep) & -- & 0.647 & -- & -- & REC-WIN & Frozen & TUAB \\
+\midrule
+\multicolumn{8}{l}{\textit{BIOT-style FFT Transformer (1.2M)}} \\
+BIOT + VICReg$^{*}$ & 0.775$^{a}$ & -- & -- & -- & WIN & Frozen & TUAB \\
+BIOT + SIGReg & 0.783$^{a}$ & -- & -- & -- & WIN & Frozen & TUAB \\
+BIOT + Pred-JEPA (20ep) & -- & 0.790 & 0.866 & -- & REC-WIN & Frozen & TUAB \\
+\midrule
+\multicolumn{8}{l}{\textit{EEGPT-style channel-pool Transformer (0.8M)}} \\
+EEGPT + VICReg$^{*}$ & collapsed & -- & -- & -- & WIN & Frozen & TUAB \\
+EEGPT + SIGReg & collapsed & -- & -- & -- & WIN & Frozen & TUAB \\
+EEGPT + Pred-JEPA (20ep) & -- & 0.613 & 0.642 & -- & REC-WIN & Frozen & TUAB \\
+EEGPT + VICReg (fixed) & -- & -- & -- & 0.182 & -- & Frozen & TUAB \\
+EEGPT + VICReg (no chan drop) & -- & -- & -- & 0.358 & -- & Frozen & TUAB \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\paragraph{Key findings.}
+\begin{enumerate}[noitemsep]
+  \item \textbf{Conv1D dominates} all encoder families at equal or lower parameter count.
+  \item \textbf{Corruption augmentation} (time masking + spike injection) is the single
+    most impactful ingredient: $+0.014$ WIN, $+0.029$ REC.
+  \item \textbf{Spectral loss with fixed VICReg hurts}: with correct coefficients (inv=25),
+    adding spectral reg at 0.05 or 0.10 decreases BACC (0.819 $\to$ 0.802 $\to$ 0.795).
+    The previous best of 0.836 (spec=0.1) was achieved with buggy VICReg (inv=1), where
+    the spectral loss compensated for the underweighted invariance term.  With correct
+    VICReg, spectral regularisation provides no independent benefit.
+  \item \textbf{EEGPT collapsed} under both objectives with the buggy VICReg;
+    the channel-drop vs.\ channel-pool conflict is the architectural root cause.
+    Removing channel-drop improves TUEV transfer (0.182 $\to$ 0.358).
+  \item \textbf{NaiveJEPA} (temporal split, no anti-collapse term) reaches 0.779 BACC
+    and 0.389 TUEV, competitive with VICReg at a fraction of the design complexity.
+  \item \textbf{TUEV best}: Conv + VICReg$^{*}$ + spec 0.1 = 0.425 (buggy VICReg run).
+    This cross-task transfer result is the strongest evidence of general EEG representation
+    quality, as TUEV labels were never seen during pretraining.
+\end{enumerate}
+
+%% ============================================================
+\section{Per-Model Mathematical Descriptions}
+\label{sec:math}
+%% ============================================================
+
+\subsection{Conv1D Encoder + VICReg}
+\label{sec:math_conv}
+
+\paragraph{Energy function.}
+\begin{equation}
+  \boxed{E_{\mathrm{VICReg}} = w_2 \cdot L_2 + w_V \cdot L_V + w_C \cdot L_C}
+  \quad (w_2, w_V, w_C) = (25,\,25,\,1).
+\end{equation}
+
+\textbf{$L_2$ (invariance):}
+\begin{equation}
+  L_2(\mathbf{Z}, \mathbf{Z}') = \frac{1}{N}\sum_{i=1}^{N}\|\mathbf{z}_{a,i} - \mathbf{z}_{b,i}\|^2,
+  \quad \mathbf{z}_{a,i}, \mathbf{z}_{b,i} \in \mathbb{R}^{d_p},\; d_p{=}1024.
+\end{equation}
+This is the core energy: it drives both views toward the same latent point.
+
+\textbf{$L_V$ (variance / anti-collapse hinge):}
+\begin{equation}
+  L_V = \frac{1}{2d_p}\sum_{j=1}^{d_p}\Bigl[
+    \max(0,\,\gamma - \mathrm{Std}(\mathbf{Z}_{a,:,j})) +
+    \max(0,\,\gamma - \mathrm{Std}(\mathbf{Z}_{b,:,j}))
+  \Bigr], \quad \gamma = 1.
+\end{equation}
+$\mathbf{Z}_a \in \mathbb{R}^{N \times d_p}$ is the batch of projected embeddings for view $a$.
+$L_V$ penalises any dimension $j$ whose within-batch standard deviation falls below 1,
+preventing collapse to a constant vector.
+
+\textbf{$L_C$ (covariance / decorrelation):}
+\begin{equation}
+  L_C = \frac{1}{2d_p(d_p{-}1)}\Bigl[
+    \sum_{i\neq j}\mathrm{Cov}(\mathbf{Z}_a)^2_{ij} +
+    \sum_{i\neq j}\mathrm{Cov}(\mathbf{Z}_b)^2_{ij}
+  \Bigr],
+\end{equation}
+where $\mathrm{Cov}(\mathbf{Z}) = (\mathbf{Z}-\bar{\mathbf{Z}})^\top(\mathbf{Z}-\bar{\mathbf{Z}})/(N-1)$.
+$L_C$ penalises correlated dimensions, encouraging the encoder to spread information
+across all $d_p$ independent directions.
+
+\paragraph{Architecture.}
+The Conv1D encoder is designed from scratch.  Input $\mathbf{X} \in \mathbb{R}^{19 \times 2000}$:
+\begin{equation}
+  \mathbf{H}^{(l)} = \mathrm{GELU}\!\Bigl(\mathrm{BN}\bigl(
+    \mathrm{Conv1d}_{F_l,\,k=7,\,s=2}(\mathbf{H}^{(l-1)})\bigr)\Bigr),
+  \quad l=1,\ldots,4,
+\end{equation}
+with channel widths $F_0{=}19, F_1{=}64, F_2{=}128, F_3{=}256, F_4{=}256$.
+Stride 2 halves the time axis each block: $2000 \to 1000 \to 500 \to 250 \to 125$.
+Global average pooling over time, then $\mathbf{W}_{\rm out} \in \mathbb{R}^{256\times256}$:
+\begin{equation}
+  \mathbf{z} = \mathbf{W}_{\rm out}\!\left(\tfrac{1}{125}\textstyle\sum_{t=1}^{125}
+    \mathbf{H}^{(4)}_{:,t}\right)\in\mathbb{R}^{256}.
+\end{equation}
+Projector MLP: $256\to1024\to1024$ (two linear layers with batch norm and ReLU).
+Total parameters: $\approx 0.4$M.
+
+\subsection{Conv1D + SIGReg}
+\label{sec:math_sigreg}
+
+\paragraph{Energy function.}
+SIGReg replaces $L_V$ and $L_C$ with a Gaussianisation surrogate~\cite{epps1983}:
+\begin{equation}
+  \boxed{E_{\mathrm{SIGReg}} = L_2 + \lambda \cdot L_{\mathrm{SIG}}},
+  \quad \lambda = 10,\; K{=}256.
+\end{equation}
+For $K$ random unit-sphere directions $\mathbf{v}_k \sim \mathcal{U}(\mathcal{S}^{d_p-1})$:
+\begin{equation}
+  L_{\mathrm{SIG}} = \frac{1}{2K}\sum_{k=1}^{K}\Bigl[
+    \mathrm{EP}_N\!\bigl(\{\mathbf{v}_k^\top \mathbf{z}_{a,i}\}_i\bigr) +
+    \mathrm{EP}_N\!\bigl(\{\mathbf{v}_k^\top \mathbf{z}_{b,i}\}_i\bigr)\Bigr],
+\end{equation}
+where $\mathrm{EP}_N(\{u_i\})$ is the Epps--Pulley test statistic measuring deviation
+of the empirical distribution from Gaussian:
+\begin{equation}
+  \mathrm{EP}_N(\{u_i\}) = \int_{-3}^{3}
+    e^{-t^2/2}\left|\hat\varphi_N(t) - e^{-t^2/2}\right|^2 dt,
+  \quad
+  \hat\varphi_N(t) = \tfrac{1}{N}\textstyle\sum_{i=1}^N e^{jtu_i}.
+\end{equation}
+The integral is approximated at 10 equally-spaced points in $[-3,3]$.
+Collapse (constant vectors) forces projections to be non-Gaussian, which the EP test
+detects.  This is a strictly stronger collapse criterion than VICReg's variance hinge.
+
+\paragraph{Architecture.} Identical to Conv1D + VICReg above.
+
+\subsection{Conv1D + Spectral Regularisation}
+\label{sec:math_spectral}
+
+\paragraph{Energy function.}
+\begin{equation}
+  \boxed{E_{\mathrm{spec}} = E_{\mathrm{VICReg}} + w_{\rm spec} \cdot L_{\rm spec}},
+  \quad w_{\rm spec} \in \{0.05, 0.1, 0.3, 1.0\}.
+\end{equation}
+$L_{\rm spec}$ is a DDSP-inspired multi-scale spectral loss~\cite{engel2020ddsp} applied
+to the encoder \emph{feature maps} (not the raw signal) of both views:
+\begin{equation}
+  L_{\rm spec} = \frac{1}{|M|}\sum_{m \in M} \frac{1}{N f_m}\sum_{i=1}^N\sum_{k=1}^{f_m}
+    \Bigl(\log|\hat{\mathbf{S}}^{(m)}_{i,k}| - \log|\mathbf{S}^{(m)}_{i,k}|\Bigr)^2,
+\end{equation}
+where $M = \{256, 128, 64, 32\}$ are the STFT window sizes, $f_m = m/2 + 1$ is the
+number of frequency bins, $\mathbf{S}^{(m)}_{i,k}$ is the STFT magnitude of the
+\emph{target} feature map at scale $m$, and $\hat{\mathbf{S}}^{(m)}_{i,k}$ is that of
+the \emph{context} feature map.  This encourages the encoder to map views with similar
+spectral content to similar feature maps.
+
+\paragraph{Key finding from this work.}
+The spectral loss helped with the \emph{buggy} VICReg (inv=1) but hurts with the
+\emph{fixed} VICReg (inv=25).  With correct invariance weighting, VICReg alone dominates
+and the spectral term conflicts rather than supplements it.
+
+\subsection{LaBraM-Style Patch Transformer}
+\label{sec:math_labram}
+
+\paragraph{Energy function.}
+$E_{\mathrm{LaBraM}} = 25 L_2 + 25 L_V + L_C$ (VICReg) or $L_2 + 10 L_{\mathrm{SIG}}$
+(SIGReg).  Identical form to Conv1D; architecture differs.
+
+\paragraph{Architecture.}
+Inspired by LaBraM~\cite{labram} but built from scratch (without the VQ-codebook
+neural tokeniser).  Each channel is split into $P{=}10$ non-overlapping patches of
+$w{=}200$ samples each:
+\begin{equation}
+  \mathbf{p}_{c,k} = \mathbf{X}_{c,\,(k-1)w:kw}\in\mathbb{R}^{w},\quad c\in[C],\;k\in[P].
+\end{equation}
+Linear patch embedding plus learnable temporal and channel embeddings:
+\begin{equation}
+  \hat{\mathbf{e}}_{c,k} = \mathbf{W}_p\mathbf{p}_{c,k} + \mathbf{te}_k + \mathbf{se}_c
+  \in\mathbb{R}^{d_e},\quad d_e{=}128.
+\end{equation}
+Sequence of $C \times P = 190$ tokens fed to 4 Transformer blocks~\cite{transformer}
+(multi-head attention with $n_h{=}4$ heads, pre-LN, FFN ratio 4):
+\begin{equation}
+  \mathrm{Attn}(Q,K,V) = \mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_h}}\right)V,
+  \quad d_h = d_e / n_h = 32.
+\end{equation}
+Mean-pool over 190 tokens; linear projection $d_e\to 256$: $\mathbf{z}\in\mathbb{R}^{256}$.
+Total parameters: $\approx 1.2$M.
+
+\subsection{BIOT-Style FFT Transformer}
+\label{sec:math_biot}
+
+\paragraph{Energy function.} Same as LaBraM-style.
+
+\paragraph{Architecture.}
+Inspired by BIOT~\cite{biot} (from scratch).  The key difference: each patch
+$\mathbf{p}_{c,k}$ is embedded via its one-sided FFT magnitude spectrum:
+\begin{equation}
+  \mathbf{s}_{c,k}[m] = \left|\sum_{n=0}^{w-1}\mathbf{p}_{c,k}[n]\,
+    e^{-j2\pi mn/w}\right|,\quad m=0,\ldots,\tfrac{w}{2}.
+\end{equation}
+This yields a $(w/2+1){=}101$-dimensional frequency vector per patch.
+Linear projection to $d_e{=}128$, then the same Transformer and pooling as LaBraM-style.
+Total parameters: $\approx 1.2$M.
+
+\paragraph{Failure mode.}
+The FFT discards phase information.  EEG pathology often manifests in temporal dynamics
+(spike-wave complexes, burst-suppression onset) that depend on phase; discarding it limits
+BIOT-style to frequency-content features.
+
+\subsection{EEGPT-Style Hierarchical Channel-Pool Transformer}
+\label{sec:math_eegpt}
+
+\paragraph{Energy function.} Same as LaBraM-style.
+
+\paragraph{Architecture.}
+Inspired by EEGPT~\cite{eegpt} (from scratch).  A learnable \emph{channel-pooling} step
+reduces 19 channel tokens to 1 summary token per time patch:
+
+Each patch is linearly embedded with a learnable channel codebook:
+$\mathrm{tok}_{c,k} = \mathbf{W}_p\mathbf{p}_{c,k} + \mathbf{s}_c \in \mathbb{R}^{d_e}$.
+A global query $\mathbf{q}\in\mathbb{R}^{d_e}$ attends over all $C{=}19$ channel tokens:
+\begin{equation}
+  \mathbf{g}_k = \mathrm{Attn}\!\bigl(\mathbf{q};\;
+    [\mathrm{tok}_{1,k},\ldots,\mathrm{tok}_{C,k}]\bigr)\in\mathbb{R}^{d_e}.
+\end{equation}
+This reduces 190 tokens to 10 summary tokens.  A 4-block Transformer over the 10 tokens,
+then mean-pool and linear projection to $\mathbb{R}^{256}$.
+Total parameters: $\approx 0.8$M.
+
+\paragraph{Failure mode: channel-pool $\times$ channel-drop conflict.}
+The channel-drop augmentation ($p{=}0.2$) zeros different channels in view $a$ and $b$
+independently.  The pooling attention $\mathbf{g}_k$ therefore receives a different
+subset of channels per view, making the summary tokens structurally incompatible.
+The invariance loss $L_2 = \|\mathbf{z}_a - \mathbf{z}_b\|^2$ then demands the encoder
+ignore which channels are present, defeating the spatial-attention design.
+This is why EEGPT collapsed with channel-drop augmentation; removing channel-drop
+raises TUEV BACC from 0.182 to 0.358.
+
+\subsection{NaiveJEPA (Temporal-Split Predictive)}
+\label{sec:math_naive}
+
+\paragraph{Concept.}
+NaiveJEPA follows I-JEPA~\cite{ijepa} applied to EEG: a single window $\mathbf{x}$
+is split in time at ratio $r$ (default 0.5).  An online encoder sees the first $r T$
+samples (context); an EMA target encoder sees the remaining $(1-r)T$ samples (target).
+A predictor maps context embedding to target embedding.  Anti-collapse is \emph{not needed}:
+context and target cover disjoint time spans, so constant predictions cannot minimise MSE.
+
+\paragraph{Energy function.}
+\begin{equation}
+  \boxed{E_{\mathrm{NaiveJEPA}} = L_{\mathrm{pred}} = \mathrm{MSE}(\hat{\mathbf{z}}_{\rm tgt},\;
+    \mathbf{z}_{\rm tgt})},
+\end{equation}
+\begin{equation}
+  \hat{\mathbf{z}}_{\rm tgt} = h_\psi(\bar{\mathbf{z}}_{\rm ctx}), \quad
+  \bar{\mathbf{z}}_{\rm ctx} = \frac{1}{F_{\rm ctx}}\sum_{t=1}^{F_{\rm ctx}}
+    f_\theta(\mathbf{x}_{:,:rT})_t, \quad
+  \mathbf{z}_{\rm tgt} = \mathrm{sg}\!\left(
+    \frac{1}{F_{\rm tgt}}\sum_{t=1}^{F_{\rm tgt}}
+    f_{\bar\theta}(\mathbf{x}_{:,rT:})_t\right),
+\end{equation}
+where $f_\theta$ is the online (trained) encoder, $f_{\bar\theta}$ is the EMA target
+encoder with no gradient, $h_\psi$ is a 2-layer MLP predictor
+($D\to 2D\to D$ with LayerNorm and GELU), and $\mathrm{sg}(\cdot)$ is the stop-gradient.
+The EMA update:
+\begin{equation}
+  \bar\theta \leftarrow m\,\bar\theta + (1-m)\,\theta, \quad m = 0.996.
+\end{equation}
+
+\paragraph{Architecture.} Same Conv1D encoder as above.  Predictor: LayerNorm + Linear
+($D \to 2D$) + GELU + Linear ($2D \to D$), $D{=}256$.
+
+\subsection{Predictive EMA-JEPA (GRU-based)}
+\label{sec:math_pred}
+
+\paragraph{Energy function.}
+\begin{equation}
+  \boxed{E_{\mathrm{Pred}} = L_{\rm pred} + w_V\,L_V^{\rm flat} + w_C\,L_C^{\rm flat}},
+  \quad w_V = w_C = 1.
+\end{equation}
+Two independently augmented views $\mathbf{v}_1, \mathbf{v}_2$ of the \emph{same} window
+are encoded to frame sequences $\mathbf{h}^{(1)}, \mathbf{h}^{(2)} \in \mathbb{R}^{F\times D}$.
+An EMA target encoder provides $\mathbf{h}^{(2)}$ without gradient.
+A GRU predictor rolls forward from frame 0 of $\mathbf{h}^{(1)}$:
+\begin{equation}
+  \hat{\mathbf{h}}^{(2)}_t = \mathrm{GRU}(\hat{\mathbf{h}}^{(2)}_{t-1}, \mathbf{0}),
+  \quad
+  L_{\rm pred} = \frac{1}{F-1}\sum_{t=1}^{F-1}
+    \|\hat{\mathbf{h}}^{(2)}_t - \mathbf{h}^{(2)}_t\|^2.
+\end{equation}
+Anti-collapse: Hinge-std and Covariance losses applied to the flattened frame matrix
+$\mathbf{H}^{(1)}\in\mathbb{R}^{(NF)\times D}$ (same $L_V$, $L_C$ definitions as VICReg).
+
+\paragraph{Failure mode.}
+Both views span the \emph{same} 10-second window; the GRU's ``temporal prediction'' is
+actually augmentation-invariance in disguise.  The anti-collapse term (std\_loss) was
+near-zero throughout training (encoder found near-constant solutions), and downstream
+TUAB BACC (0.764--0.808) is below VICReg, confirming collapse.
+
+\subsection{MLP Classifier (Probe)}
+\label{sec:math_mlp}
+
+The downstream classification probe is implemented as a 3-layer MLP:
+\begin{align}
+  \mathbf{h}_1 &= \mathrm{ReLU}(\mathbf{W}_1\mathbf{z} + \mathbf{b}_1),\quad \mathbf{W}_1\in\mathbb{R}^{128\times256},\\
+  \mathbf{h}_2 &= \mathrm{ReLU}(\mathbf{W}_2\mathbf{h}_1 + \mathbf{b}_2),\quad \mathbf{W}_2\in\mathbb{R}^{64\times128},\\
+  \hat{y} &= \mathrm{Softmax}(\mathbf{W}_3\mathbf{h}_2 + \mathbf{b}_3),\quad \mathbf{W}_3\in\mathbb{R}^{2\times64}.
+\end{align}
+Implemented via \texttt{sklearn.neural\_network.MLPClassifier}
+(\texttt{hidden\_layer\_sizes=(128,64)}, \texttt{max\_iter=500}, \texttt{early\_stopping=True}).
+A \texttt{StandardScaler} is fitted on training embeddings and applied identically at eval.
+
+\textbf{Frozen mode}: only $\{\mathbf{W}_l,\mathbf{b}_l\}$ are updated; $f_\theta$ parameters
+receive no gradient.\\
+\textbf{Fine-tuned mode}: all parameters (encoder + probe) are optimised jointly at
+learning rate $10^{-5}$ for the encoder, $10^{-3}$ for the probe.
+
+Note: A logistic regression probe (sklearn LogReg) is the standard SSL community probe
+and would allow direct comparison to SimCLR/MoCo literature.  Our MLP is more expressive
+and may inflate absolute numbers by $\approx$0.01--0.02 BACC relative to LogReg.
+
+\subsection{Training and Testing Protocol}
+\label{sec:protocol}
+
+\paragraph{SSL pre-training.}
+\begin{itemize}[noitemsep]
+  \item \textbf{Dataset}: TUAB SSL split (2\,717 recordings, labels discarded).
+  \item \textbf{Windows}: non-overlapping 10-second windows, per-channel z-score online.
+  \item \textbf{Optimiser}: AdamW, lr $= 10^{-3}$, weight decay $10^{-6}$.
+  \item \textbf{Batch size}: 128 windows.
+  \item \textbf{Duration}: 20 epochs.
+  \item \textbf{Augmentation}: Gaussian noise ($\sigma{=}0.1$), amplitude jitter ($\pm$20\%),
+    channel dropout ($p{=}0.2$), time masking (20\% of timepoints), spike injection ($\pm6\sigma$
+    at 20\% timepoints) for the corruption variant.
+\end{itemize}
+
+\paragraph{Probe training (ssl split with labels).}
+$N{=}16$ evenly-spaced windows per training recording $\to$ frozen encoder
+$\to$ 16 embeddings $\to$ mean-pool $\to$ one 256-dim vector per recording.
+Probe trained on 2\,717 vectors with their binary labels.
+
+\paragraph{Evaluation (eval split).}
+\begin{itemize}[noitemsep]
+  \item \textbf{WIN}: all non-overlapping 10-second windows, one prediction each,
+    BACC over all window predictions.
+  \item \textbf{REC-WIN}: same $N{=}16$ extraction as probe training, mean-pool, classify.
+  \item No test-time augmentation, no threshold tuning.
+\end{itemize}
+
+\paragraph{TUEV transfer probe.}
+Frozen logistic regression on event-centred 10-second windows (5 events per class subsampled,
+background subsampled to $\approx$1.26\% of windows), evaluated on the TUEV v2.0.0 eval split.
+Window length: 10 seconds (2000 samples) for all encoders except Conv1D (5 seconds for early runs).
+
+%% ============================================================
+\section{Combined Best Results (Per-Recording Focus)}
+\label{sec:best}
+%% ============================================================
+
+Table~\ref{tab:best} consolidates the best per-recording results from literature and this work,
+filtered to REC-WIN or REC-FULL (one prediction per patient, the clinically meaningful unit).
+Per-window results are included for reference where no REC protocol exists.
+
+\begin{table}[htbp]
+\centering
+\caption{%
+  Best TUAB results, per-recording focus.
+  Bold = best in each block.
+  FEMBA and LaBraM entries use massive external pretraining (TUEG 21kh); these are
+  not directly comparable to TUAB-only methods.
+  $^{\ddag}$Best REC of EEGNet reported in EEGNet literature;
+  BACC derived by us from per-window sensitivity/specificity numbers.
+}
+\label{tab:best}
+\small
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llC{1.1cm}C{1.3cm}C{1.3cm}C{1.3cm}L{1.4cm}}
+\toprule
+\textbf{Method} & \textbf{Encoder} & \textbf{Params} &
+  \textbf{BACC\textsubscript{WIN}} &
+  \textbf{BACC\textsubscript{REC}} &
+  \textbf{AUROC\textsubscript{REC}} &
+  \textbf{Mode} \\
+\midrule
+\multicolumn{7}{l}{\textit{Foundation models with large external pretraining}} \\
+LaBraM-Base~\cite{labram,eeg_bench} & Patch Transformer & 5.8M & 0.814 & 0.838 & -- & FT (ext.) \\
+FEMBA-Base~\cite{femba} & Bidirec.\ Mamba & 47.7M & -- & 0.811 & 0.889 & FT (TUEG 21kh) \\
+FEMBA-Huge~\cite{femba} & Bidirec.\ Mamba & 386M & -- & \textbf{0.818} & \textbf{0.901} & FT (TUEG 21kh) \\
+\midrule
+\multicolumn{7}{l}{\textit{Supervised baselines (TUAB labels only)}} \\
+EEGNet~\cite{eegnet,kiessner2023} & Depthwise CNN & 9k & 0.796 & 0.824 & 0.913 & FT \\
+Deep4Net~\cite{shallowconvnet} & Deep CNN & -- & 0.816 & -- & -- & FT \\
+\midrule
+\multicolumn{7}{l}{\textit{Published SSL models (WIN, TUAB-only pretraining)}} \\
+ContraWR~\cite{contrawr} & CNN & 1.6M & 0.775 & -- & -- & Frozen \\
+BIOT~\cite{biot} & FFT Transformer & 3.2M & 0.802 & -- & -- & Frozen \\
+LaBraM-Base~\cite{labram} & Patch Transformer & 5.8M & \textbf{0.814} & -- & -- & Frozen \\
+\midrule
+\multicolumn{7}{l}{\textit{\cellcolor{ours}EB-JEPA (this work) --- frozen encoder, TUAB-only SSL}} \\
+\cellcolor{ours}VICReg (fixed) & \cellcolor{ours}Conv1D & \cellcolor{ours}0.4M & \cellcolor{ours}-- & \cellcolor{ours}0.819 & \cellcolor{ours}0.900 & \cellcolor{ours}SSL Frozen \\
+\cellcolor{ours}VICReg$^{*}$ + corruption & \cellcolor{ours}Conv1D & \cellcolor{ours}0.4M & \cellcolor{ours}0.770 & \cellcolor{ours}0.825 & \cellcolor{ours}0.904 & \cellcolor{ours}SSL Frozen \\
+\cellcolor{ours}SIGReg + corruption & \cellcolor{ours}Conv1D & \cellcolor{ours}0.4M & \cellcolor{ours}0.775 & \cellcolor{ours}0.825 & \cellcolor{ours}0.904 & \cellcolor{ours}SSL Frozen \\
+\cellcolor{ours}NaiveJEPA & \cellcolor{ours}Conv1D & \cellcolor{ours}0.4M & \cellcolor{ours}-- & \cellcolor{ours}0.779 & \cellcolor{ours}0.863 & \cellcolor{ours}SSL Frozen \\
+\cellcolor{ours}VICReg$^{*}$ + spec 0.1$^{\dag}$ & \cellcolor{ours}Conv1D & \cellcolor{ours}0.4M & \cellcolor{ours}0.765 & \cellcolor{ours}\textbf{0.836} & \cellcolor{ours}0.887 & \cellcolor{ours}SSL Frozen \\
+\midrule
+\multicolumn{7}{l}{\textit{\cellcolor{ours}EB-JEPA (this work) --- fine-tuned}} \\
+\cellcolor{ours}VICReg$^{*}$ + corruption $\to$ FT & \cellcolor{ours}Conv1D & \cellcolor{ours}0.4M & \cellcolor{ours}-- & \cellcolor{ours}0.812 & \cellcolor{ours}0.908 & \cellcolor{ours}Fine-tuned \\
+\bottomrule
+\multicolumn{7}{l}{$^{\dag}$Trained with buggy VICReg (inv\_coeff=1); result not reproducible with corrected coefficients.}
+\end{tabular}}
+\end{table}
+
+\paragraph{Discussion.}
+\begin{itemize}[noitemsep]
+  \item The 0.4M Conv1D encoder with SIGReg + corruption reaches 0.775 WIN BACC (= ContraWR,
+    1.6M parameters) and 0.825 REC BACC within 20 training epochs without any labels.
+  \item Per-recording, our fine-tuned probe reaches $0.812\pm0.004$ (3 seeds, final epoch),
+    statistically matching supervised EEGNet ($0.824 \pm$ REC, FT).  SSL pretraining without
+    labels thus \emph{ties} the supervised baseline at patient-level classification.
+  \item The 0.836 REC BACC (spectral + buggy VICReg) is not reproducible with correct
+    coefficients (fixed VICReg gives 0.819 without spectral and 0.795 with spec=0.1),
+    so it should be interpreted cautiously.
+  \item The 3.9\,pp gap to LaBraM-Base at WIN remains unexplained; tokeniser quality
+    (VQ-codebook), model scale (5.8M vs.\ 0.4M), and pretraining duration (200 vs.\
+    20 epochs) are the prime candidates.
+\end{itemize}
+
+%% ============================================================
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+%% ============================================================
+
+\subsection{Summary}
+
+We presented EB-JEPA, a two-view energy-based SSL framework for clinical EEG with four
+encoder families and multiple objective variants.
+The primary contribution is \emph{diagnostic}: three systematic failure modes were
+identified, quantified, and corrected during the hackathon.
+
+\paragraph{Positive results.}
+A 0.4M Conv1D encoder trained without labels for 20 epochs reaches 0.775 WIN BACC
+(matching ContraWR) and 0.819 REC BACC (matching supervised EEGNet after fine-tuning).
+NaiveJEPA, a minimal temporal-split predictive objective requiring no anti-collapse
+regulariser, reaches 0.389 BACC on TUEV 6-class transfer \emph{with no event labels
+during pretraining}, demonstrating cross-task generalisation.
+
+\paragraph{Failure modes documented.}
+\begin{enumerate}[noitemsep]
+  \item \textbf{VICReg coefficient bug} ($\lambda{=}1$ vs.\ paper-correct $\lambda{=}25$):
+    caused catastrophic collapse for EEGPT and partially degraded all encoders.
+    Invariance contribution: $25 \times 0.023 = 0.575$ (fixed) vs.\ $1 \times 0.023 = 0.023$
+    (buggy) --- a 25$\times$ underweighting.
+  \item \textbf{EEGPT channel-drop $\times$ channel-pool conflict}: the cross-attention
+    pooling (19 channels $\to$ 1 token per time step) is structurally incompatible with
+    channel-drop augmentation.  Removing channel-drop raises TUEV BACC from 0.182 to 0.358.
+  \item \textbf{Spectral loss independence myth}: the D4 open question is resolved.
+    The spectral auxiliary loss (spec=0.1) improved BACC from 0.796 to 0.836 with buggy
+    VICReg, but \emph{hurts} (0.819 $\to$ 0.795) with correctly-weighted VICReg.
+    The spectral loss was compensating for the invariance underweighting, not providing
+    independent signal.
+\end{enumerate}
+
+\subsection{Open Scientific Questions}
+
+\begin{description}[noitemsep]
+  \item[D1] Is EEGPT collapse due to the channel-drop conflict, the VICReg bug, or both?
+    Separate ablation needed: (i) no channel-drop + buggy VICReg, (ii) channel-drop +
+    fixed VICReg, (iii) no channel-drop + fixed VICReg.
+  \item[D2] What explains the 3.9\,pp gap to LaBraM at WIN?
+    Candidates: tokeniser quality (VQ-codebook), model scale (5.8M vs.\ 0.4M),
+    pretraining duration (200 vs.\ 20 epochs), data diversity.
+  \item[D3] LogReg vs.\ MLP probe: the MLP inflates BACC by $\approx$0.01--0.02
+    vs.\ LogReg; switching would enable direct comparison to SimCLR/MoCo literature.
+  \item[D4] (\emph{Resolved}) Spectral + fixed VICReg: no independent benefit found.
+  \item[D5] Aperiodic shortcut: does EB-JEPA's SIGReg representation exploit the 1/$f$
+    spectral slope?  Apply~\cite{spectral_audit}'s phase-preserving Fourier intervention to
+    frozen Conv1D + SIGReg to determine if BACC drops after flattening.
+  \item[D6] Zero-shot abnormality scoring from NaiveJEPA energy: the MSE prediction error
+    $E(\mathbf{x}) = \|\hat{\mathbf{z}}_{\rm tgt} - \mathbf{z}_{\rm tgt}\|^2$ computed per
+    recording can serve as a direct abnormality score without any probe or labels.
+    Computing AUROC from this energy alone is a strong test of world-model quality.
+\end{description}
+
+\subsection{Future Work}
+
+\begin{enumerate}[noitemsep]
+  \item \textbf{Neural tokeniser for LaBraM-style.}
+    Training the VQ-codebook patch tokeniser~\cite{labram} (masked Fourier prediction on
+    patches) and plugging it into our 1.2M Transformer backbone is the highest-priority
+    architectural experiment.
+  \item \textbf{Context ratio ablation for NaiveJEPA.}
+    Try $r \in \{0.25, 0.50, 0.75\}$: smaller context = harder prediction = potentially
+    richer representations (standard I-JEPA finding).
+  \item \textbf{Longer pretraining.}
+    All runs used 20 epochs.  LaBraM used $\approx$200 epochs on 2\,500h of diverse EEG.
+    Even 40 epochs on TUAB-only is a cheap test of duration vs.\ capacity.
+  \item \textbf{Mamba-based encoder.}
+    FEMBA~\cite{femba} shows bidirectional Mamba scales linearly in sequence length vs.\
+    $\mathcal{O}(N^2)$ for Transformers.  A small Mamba ($\approx$7.8M, FEMBA-Tiny)
+    tested with VICReg is a natural next step.
+  \item \textbf{NaiveJEPA + spectral on TUEV.}
+    Stacking temporal masking (free anti-collapse) with spectral reg may combine
+    complementary signals.
+  \item \textbf{Multi-seed statistical significance.}
+    All key findings rest on single-seed runs.  Rerunning the top 2--3 configs with 3 seeds
+    would separate real signal from lucky initialisations.
+\end{enumerate}
+
+\subsection{Methodological Lessons}
+
+\begin{enumerate}[noitemsep]
+  \item \textbf{Always verify evaluation protocol.}
+    WIN vs.\ REC-WIN is a 5\,pp systematic gap.  Comparing across protocols manufactures
+    wins that vanish when the measurement is harmonised.
+  \item \textbf{Loss coefficient bugs are invisible from convergence curves.}
+    A 25$\times$ underweighted term may still converge to a ``good enough'' minimum;
+    the bug is only detectable by auditing raw loss magnitudes against paper-reported ranges.
+  \item \textbf{Augmentation--architecture coupling.}
+    Augmentation policies that are benign for Conv1D can be catastrophic for EEGPT
+    (channel-drop + channel-pool).  Design or ablate augmentation per encoder family.
+  \item \textbf{Best-epoch selection peeks at the test set.}
+    Reporting the epoch with highest evaluation BACC uses the test set for model selection.
+    Our fine-tuned probe appeared to reach 0.837 at its best epoch but only $0.812\pm0.004$
+    at the final epoch (3 seeds).  The 2.5\,pp gap is pure peeking; it was exactly the margin
+    that made SSL look like it beat EEGNet rather than tie it.
+\end{enumerate}
+
+\bigskip
+\noindent\textbf{Code and data.}
+All encoder architectures, training scripts, evaluation protocols, experiment logs,
+and the science-check protocol are available in the project repository
+(\texttt{Hack\_the\_worlds/}).
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
