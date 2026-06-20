@@ -101,11 +101,35 @@ def do_tsne(X, perplexity=30, n_iter=1000):
     ).fit_transform(Xpca)
 
 
-def do_lda(X, y):
-    """Project onto the single LDA axis (binary: 1 discriminant).
-    Returns 1-D scores — the direction that maximally separates the two classes."""
-    Xs = StandardScaler().fit_transform(X)
-    return LinearDiscriminantAnalysis(n_components=1).fit_transform(Xs, y).ravel()
+def do_lda(encoder, device, n_windows=16):
+    """Fit LDA on train set, project eval set — honest out-of-sample projection.
+    Returns (scores_eval [N_eval], y_eval [N_eval])."""
+    def embed(split):
+        ds = EEGDataset(EEGConfig(split=split, mode="probe"))
+        loader = torch.utils.data.DataLoader(
+            ds, batch_size=8, shuffle=False, num_workers=4, pin_memory=True)
+        X, y = [], []
+        with torch.no_grad():
+            for wins, labels, ok in loader:
+                B, N = wins.shape[:2]
+                idx = np.linspace(0, N - 1, min(n_windows, N), dtype=int)
+                flat = wins[:, idx].reshape(B * len(idx), *wins.shape[2:]).to(device)
+                z = encoder.represent(flat).reshape(B, len(idx), -1).mean(1).cpu().numpy()
+                for k in range(B):
+                    if bool(ok[k]):
+                        X.append(z[k]); y.append(int(labels[k]))
+        return np.stack(X), np.array(y)
+
+    print("[viz] LDA: extraction train set …", flush=True)
+    X_train, y_train = embed("train")
+    print(f"[viz] LDA: train X={X_train.shape}", flush=True)
+    print("[viz] LDA: extraction eval set …", flush=True)
+    X_eval,  y_eval  = embed("eval")
+
+    scaler = StandardScaler().fit(X_train)
+    lda    = LinearDiscriminantAnalysis(n_components=1).fit(scaler.transform(X_train), y_train)
+    scores = lda.transform(scaler.transform(X_eval)).ravel()
+    return scores, y_eval
 
 
 def make_lda_figure(scores, y, title):
@@ -215,11 +239,12 @@ def main():
                       "perplexity=30  init=PCA  learning_rate=auto")
     save(fig, os.path.join(args.out, "tsne_tuab.png"))
 
-    # ── LDA ──────────────────────────────────────────────────────────────────
+    # ── LDA (fit on train, project eval — honest) ────────────────────────────
     print("[viz] LDA …", flush=True)
-    scores_lda = do_lda(X, y)
-    fig = make_lda_figure(scores_lda, y,
-                          f"LDA — {tag}\n(supervised projection onto max-separation axis)")
+    scores_lda, y_lda = do_lda(encoder, device, args.n_windows)
+    fig = make_lda_figure(scores_lda, y_lda,
+                          f"LDA — TUAB eval (n={len(y_lda)})\n"
+                          "fit on train (2717 rec) → projected on eval (honest)")
     save(fig, os.path.join(args.out, "lda_tuab.png"))
 
     # ── figure comparative 4-en-1 ────────────────────────────────────────────
@@ -244,12 +269,12 @@ def main():
     # LDA density panel
     ax4 = fig.add_subplot(1, 4, 4)
     for cls in [0, 1]:
-        mask = y == cls
+        mask = y_lda == cls
         ax4.hist(scores_lda[mask], bins=28, alpha=0.55, color=COLORS[cls],
                  label=f"{NAMES[cls]} (n={mask.sum()})", density=True, edgecolor="none")
         ax4.axvline(scores_lda[mask].mean(), color=COLORS[cls],
                     linewidth=1.8, linestyle="--", alpha=0.9)
-    ax4.set_title("LDA\n(max-separation axis, uses labels)", fontsize=11, fontweight="bold")
+    ax4.set_title("LDA\n(fit on train → eval, honest)", fontsize=11, fontweight="bold")
     ax4.set_xlabel("LDA score"); ax4.set_ylabel("Density")
     ax4.legend(fontsize=9, framealpha=0.7)
     ax4.grid(True, alpha=0.3)
