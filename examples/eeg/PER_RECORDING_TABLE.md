@@ -16,6 +16,7 @@ panel — including the SOTA models, which we run from their **official repos** 
 
 | Model | Provenance | Acc | **BAcc** | F1 | **AUROC** |
 |---|---|---|---|---|---|
+| **LaBraM-Base (fine-tune)** | **official `935963004/LaBraM`** + pretrained ckpt | 0.851 | **0.846** | 0.829 | **0.926** |
 | EB-JEPA fine-tune (corruption init) | **ours** (JEPA) | 0.844 | **0.837** | 0.816 | **0.919** |
 | EB-JEPA + spectral 0.1 (VICReg, frozen probe) | **ours** (JEPA) | 0.841 | 0.836 | 0.818 | 0.887 |
 | BIOT — vanilla (supervised) | **official `ycq091044/BIOT`**, our data | 0.837 | 0.829 | 0.805 | 0.903 |
@@ -30,19 +31,25 @@ panel — including the SOTA models, which we run from their **official repos** 
 | CNN-Transformer | **official BIOT repo**, our data | _running_ | | | |
 | FFCL | **official BIOT repo**, our data | _running_ | | | |
 | ST-Transformer | **official BIOT repo**, our data | _running_ | | | |
-| **LaBraM-Base (fine-tune)** | **official `935963004/LaBraM`** + pretrained ckpt | _running (job 75864)_ | | | |
 
 Precision / Recall / AUC-PR are logged too (new runs add AUC-PR); omitted here for the 4-score view.
+LaBraM AUC-PR (per-recording) = 0.9132; per-window = BAcc 0.806 / AUROC 0.855 / AUC-PR 0.823.
 
 ## Honest reading
 
 - Single-seed rows vary ±0.005. The corruption-JEPA **seed-averaged** (3 seeds) per-recording is
   **BAcc 0.819 ± 0.004 / AUROC 0.900 ± 0.006** — so the 0.825–0.837 frozen/fine-tune rows are all
   within noise of ~0.82. Don't over-read a single 0.837.
-- At the recording level our JEPA is **on par with BIOT-from-source** (0.825–0.837 vs 0.824–0.829
-  BAcc) and **on par with EEGNet** (0.824). The real test is the pending **LaBraM** row: if LaBraM
-  fine-tuned from its pretrained checkpoint lands clearly above ~0.84 here, that's the genuine SOTA
-  gap (its massive pretraining corpus), measured on *our* recordings.
+- **LaBraM-Base leads the table at 0.846 BAcc / 0.926 AUROC** — ~1 pp above our JEPA fine-tune
+  (0.837) and ~2.5 pp above the seed-averaged JEPA (0.819), ~1.7 pp above BIOT-from-source (0.829).
+  So a true foundation model **does** open a real (if modest) gap on *our exact recordings* — this
+  is the genuine SOTA pretraining advantage, not a benchmark-pipeline artefact.
+- **Validation that the LaBraM run is faithful:** its per-window BAcc here is **0.806**, within
+  ~1 pp of LaBraM's published 0.814 — despite our two documented deviations (z-scored input instead
+  of µV/100, and a 20-epoch fine-tune vs their longer recipe). The adapter reproduces the real model.
+- Below LaBraM, our JEPA is **on par with BIOT-from-source** (0.825–0.837 vs 0.824–0.829 BAcc) and
+  **on par with EEGNet** (0.824) — i.e. our self-supervised JEPA matches the supervised transformer
+  baseline, and only the large pretrained foundation model clears it.
 - BIOT pretrained ≈ BIOT vanilla here (0.824 vs 0.829) because we fine-tune on our data for only
   20 epochs with our preprocessing — the pretraining edge mostly shows at per-window on their own
   pipeline, not after our short recording-level fine-tune.
