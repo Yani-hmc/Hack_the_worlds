@@ -5,46 +5,47 @@ implies. Companion to [`PROVENANCE_TABLE.md`](PROVENANCE_TABLE.md) (which covers
 this file is *our* models only. Numbers are per-recording (16-window mean-pool) / per-window;
 single-seed unless a ±std is shown. Confounds flagged inline.
 
-## 1. The attempt matrix
+## 1. Our EB-JEPA runs — single reference table (sorted by per-recording BAcc)
 
-**Conv1D encoder (0.4M params) — the workhorse**
+Same protocol as the baselines (TUAB_PREPROCESSED, 19 ch / 200 Hz / 10 s, patient-disjoint 276-rec
+eval; per-rec = 16-window mean-pool). All runs use our own code (`eb_jepa/`, `examples/eeg/`).
+**✓ = recomputed from the Dalia job logs**; single-seed rows carry ±0.005–0.017 seed noise. Read
+this alongside [`PROVENANCE_TABLE.md`](PROVENANCE_TABLE.md) (the literature baselines).
 
-| Objective + augmentation | per-rec BAcc / AUROC | per-win BAcc / AUROC | seeds | note |
-|---|---|---|---|---|
-| VICReg, base (legacy time-mask) | 0.796 / 0.888 | 0.756 / — | 1 | starting point |
-| VICReg + corruption | **0.819 ± .004 / 0.900 ± .006** | 0.770 / 0.848 | 3 | corruption = the main lever |
-| SIGReg + corruption | 0.825 / 0.913 | **0.775 / 0.856** | 1 | best per-window |
-| VICReg + spectral 0.1 | 0.836 / 0.887 | 0.765 / — | 1 | ⚠ eval-selected sweep + inv=1 → soft |
-| VICReg + corruption, **fine-tuned** | **0.812 ± .004 / 0.908 ± .006** | — | 3 | ties EEGNet; ≈ frozen |
-| VICReg + corruption, bigger conv (scaling) | 0.805 / 0.892 | 0.768 | 1 | scaling did **not** help |
-| VICReg + corruption, **inv_coeff=25** (paper-correct) | 0.785 / 0.881 | 0.734 / 0.820 | 1→3 | **−4 pp vs inv=1** — see §3 |
-| VICReg + corruption, **multi-corpus** (4× data, 13k rec) | 0.812 / 0.883 | — | 1 | more data did **not** help |
-| Multi-corpus, fine-tuned | 0.812 | — | 1 | identical to TUAB-only FT |
-| Masked-JEPA (EMA target + predictor) | ~0.68 | — | 1 | the "faithful" JEPA form **failed** |
+| # | Config — encoder · objective · augmentation | Eval | per-rec BAcc / AUROC | per-win BAcc / AUROC | Seeds | Verified / caveat |
+|---|---|---|---|---|---|---|
+| 1 | Conv1D 0.4M · VICReg · corruption **+ spectral 0.1** | frozen | 0.836 / 0.887 | 0.765 / — | 1 | ⚠ coeff chosen on eval set + inv=1 → **soft** |
+| 2 | Conv1D 0.4M · **SIGReg** · corruption | frozen | 0.825 / 0.913 | **0.775 / 0.856** | 1 | best per-window |
+| 3 | Conv1D 0.4M · **VICReg** · corruption | frozen | **0.819 ± .004 / 0.900 ± .006** | 0.770 / 0.848 | 3 | ✓ corruption = main lever (+2.3 pp) |
+| 4 | Conv1D 0.4M · VICReg · corruption → **fine-tune** | FT | 0.812 ± .004 / 0.908 ± .006 | — | 3 | ✓ ties supervised EEGNet (0.812) |
+| 5 | Conv1D 0.4M · VICReg · corruption · **multi-corpus** (13k rec) | frozen | 0.812 / 0.883 | — | 1 | 4× data ⇒ **no gain** |
+| 6 | Conv1D 0.4M · VICReg · corruption · multi-corpus | FT | 0.812 / — | — | 1 | = TUAB-only FT |
+| 7 | Conv1D **bigger** · VICReg · corruption (scaling) | frozen | 0.805 / 0.892 | 0.768 / — | 1 | more conv capacity ⇒ **no gain** |
+| 8 | **Transformer 3.65M** · VICReg · corruption · multi-corpus | frozen | 0.798 / 0.872 | 0.738 / — | 1 | best transformer — still **< the 0.4M conv** |
+| 9 | Conv1D 0.4M · VICReg · base (legacy time-mask) | frozen | 0.796 / 0.888 | 0.756 / — | 1 | starting point |
+| 10 | Conv1D 0.4M · VICReg · corruption · **inv_coeff=25** | frozen | 0.789 ± .005 / 0.882 ± .004 | 0.734 / 0.820 | 3 | paper-correct VICReg ⇒ **−3 pp**, ≈6σ (§3 finding) |
+| 11 | Conv1D 0.4M · **Masked-JEPA** (EMA target + predictor) | frozen | ~0.68 / — | — | 1 | the "faithful" JEPA form **failed** |
+| 12 | **LaBraM-style** patch Tr 1.2M · VICReg | frozen | — | 0.775† | 1 | †=accuracy (early eval); data-starved |
+| 13 | **BIOT-style** FFT Tr 1.2M · VICReg | frozen | — | 0.775† | 1 | SIGReg variant 0.783†; data-starved |
+| 14 | **EEGPT-style** channel-pool Tr 0.8M · VICReg/SIGReg | frozen | collapsed | collapsed | 1 | channel-drop aug ⊥ channel-pool |
 
-**Transformer encoders we built from scratch (no large pre-training corpus)**
-
-| Encoder | per-rec / per-win | note |
-|---|---|---|
-| LaBraM-style patch Tr. (1.2M) | — / 0.775† | † = accuracy, early eval; SIGReg variant 0.725† |
-| BIOT-style FFT Tr. (1.2M) | — / 0.775† | SIGReg variant 0.783† |
-| EEGPT-style channel-pool Tr. (0.8M) | **collapsed** | channel-drop aug ⊥ channel-pool → representation collapse |
-| Transformer (3.65M) + multi-corpus | 0.798 / 0.738 | best transformer, still **below the 0.4M conv** |
+† accuracy, not BACC (early eval script). Spectral/FFT sweep (frozen per-rec): 0.05→0.821,
+**0.1→0.836**, 0.3→0.789, fft-consistency 0.05→0.807 — every coeff was selected on the eval set.
 
 ## 2. What moved the needle (and by how much)
 
 - **Corruption augmentation: +2.3 pp per-rec** (0.796 → 0.819, 3-seed). This is the single robust gain. Everything else is ≤1 pp or confounded.
-- **inv_coeff = 1 vs 25: +4 pp** (0.819 vs 0.785) — *weaker* invariance helps (§3). Largest single effect we have, but it's a deviation from the VICReg default, not a designed feature.
+- **inv_coeff = 1 vs 25: +3 pp** (0.819 vs 0.789, both 3-seed) — *weaker* invariance helps (§3). Largest single effect we have, but it's a deviation from the VICReg default, not a designed feature.
 - **SIGReg ≳ VICReg: ~+0.5–1 pp AUROC.** Real but small.
 - **Fine-tuning vs frozen: ≈ 0** (0.812 vs 0.819) — fine-tuning the encoder barely changes it.
 
-## 3. The inv_coeff finding (re-ran both ways — not amplified)
+## 3. The inv_coeff finding (re-ran both ways, 3 seeds each — not amplified)
 
 Our headline runs used `inv_coeff=1` (VICReg's vision default is 25). Re-running corruption+VICReg
-with the paper-correct 25 scores **0.785/0.881 per-rec vs 0.819/0.900** — i.e. the paper-default is
-**~4 pp worse**. So our numbers are **not inflated by the deviation; the deviation helps.** Reading:
-this EEG task + tiny conv + linear probe prefers the anti-collapse (variance/covariance) terms to
-dominate over view-invariance. *Status: seed-0 done; seeds 1–2 running to confirm before we claim it.*
+with the paper-correct 25 scores **0.789 ± .005 / 0.882 ± .004 per-rec vs 0.819 ± .004 / 0.900 ± .006**
+(both 3-seed) — the paper-default is **3 pp worse, a ≈6σ gap (confirmed, not noise).** So our numbers
+are **not inflated by the deviation; the deviation helps.** Reading: this EEG task + tiny conv +
+linear probe prefers the anti-collapse (variance/covariance) terms to dominate over view-invariance.
 
 ## 4. What did NOT help — the honest negative results
 
