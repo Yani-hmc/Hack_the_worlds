@@ -56,21 +56,10 @@ def build_biot(n_channels, n_classes=2, sampling_rate=200):
 
 
 # --------------------------------------------------------------------------- #
-# Window-level view on probe-mode recordings (patient-disjoint preserved)
+# Window-level view — shared helper supporting n_windows=-1 (ALL non-overlapping
+# windows per recording, literature protocol) and n_windows=16 (legacy).
 # --------------------------------------------------------------------------- #
-class WindowDataset(torch.utils.data.Dataset):
-    def __init__(self, split, n_windows=16):
-        cfg = EEGConfig(split=split, mode="probe", n_windows=n_windows)
-        self.base = EEGDataset(cfg)
-        self.n_windows = n_windows
-
-    def __len__(self):
-        return len(self.base) * self.n_windows
-
-    def __getitem__(self, idx):
-        rec_i, win_i = divmod(idx, self.n_windows)
-        wins, label, ok = self.base[rec_i]
-        return wins[win_i], int(label), int(rec_i), int(bool(ok))
+from eb_jepa.datasets.eeg.window_dataset import WindowDataset  # noqa: E402
 
 
 def _metrics(y_true, y_pred, y_prob):
@@ -121,7 +110,9 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--weight-decay", type=float, default=1e-5)
     ap.add_argument("--n-channels", type=int, default=19)
-    ap.add_argument("--n-windows", type=int, default=16)
+    ap.add_argument("--n-windows", type=int, default=-1,
+                    help="-1 = ALL non-overlapping (literature protocol); "
+                         "16 = legacy evenly-spaced subsample")
     ap.add_argument("--num-workers", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--pretrained-ckpt", default=None,

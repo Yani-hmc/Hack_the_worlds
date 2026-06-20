@@ -139,8 +139,15 @@ class EEGDataset(torch.utils.data.Dataset):
         return None
 
     def _read_recording_windows(self, path) -> Optional[np.ndarray]:
-        """Read N evenly-spaced z-scored windows -> [N, n_channels, window]."""
-        cfg, N = self.cfg, self.cfg.n_windows
+        """Read windows -> [N, n_channels, window], z-scored.
+
+        - If cfg.n_windows > 0: returns that many evenly-spaced windows (legacy).
+        - If cfg.n_windows == -1: returns ALL non-overlapping windows
+          (= nsamp // self.window). Variable N per recording; matches the
+          BIOT / LaBraM / FEMBA / EEGPT protocol of "every 10s sample = one
+          test point". The literature-canonical fair eval.
+        """
+        cfg = self.cfg
         try:
             f = pyedflib.EdfReader(path)
         except Exception:
@@ -149,9 +156,20 @@ class EEGDataset(torch.utils.data.Dataset):
             if f.signals_in_file < cfg.n_channels:
                 return None
             nsamp = int(min(f.getNSamples()[:cfg.n_channels]))
-            if nsamp <= self.window + 1:
+            if nsamp < self.window:
                 return None
-            starts = np.linspace(0, nsamp - self.window, N).astype(int)
+            if cfg.n_windows < 0:
+                # ALL non-overlapping windows (literature protocol)
+                N = nsamp // self.window
+                if N == 0:
+                    return None
+                starts = np.arange(N) * self.window
+            else:
+                # Legacy: N evenly-spaced windows
+                N = cfg.n_windows
+                if nsamp <= self.window + 1:
+                    return None
+                starts = np.linspace(0, nsamp - self.window, N).astype(int)
             wins = np.empty((N, cfg.n_channels, self.window), dtype=np.float32)
             for c in range(cfg.n_channels):
                 for j, s in enumerate(starts):
