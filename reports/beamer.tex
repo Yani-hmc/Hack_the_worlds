@@ -428,6 +428,28 @@ A linear probe on frozen features beats \textbf{ST-Transformer} and \textbf{CNN-
 \end{columns}
 \end{frame}
 
+% ─── 10b. LATENT SPACE — 3D UMAP (20s) ──────────────────────────────────────
+\begin{frame}{Latent Space: 3D UMAP (EB-JEPA, Window-Level)}
+\begin{columns}[T]
+\column{0.62\textwidth}
+\IfFileExists{latent_viz/latent_umap3d_window_seed0_a0.png}{%
+  \includegraphics[width=\linewidth]{latent_viz/latent_umap3d_window_seed0_a0.png}
+}{%
+  \begin{center}\textcolor{muted}{\footnotesize [figure pending]}\end{center}
+}
+\column{0.35\textwidth}
+{\small
+\textbf{Setup:} same encoder, window-level latents (seed 0), 3D UMAP instead of 2D.
+
+\vspace{0.3em}
+2\,400 normal / 2\,016 abnormal windows. The third dimension recovers a two-lobe structure that 2D UMAP collapses.
+
+\vspace{0.3em}
+\textcolor{muted}{\footnotesize Still unsupervised projection (no labels used to fit UMAP) — qualitative support for Finding 1, not the BACC evidence (that's LDA, previous slide).}
+}
+\end{columns}
+\end{frame}
+
 % ─── 11. LATENT SPACE — BIOT vs EB-JEPA (30s) ───────────────────────────────
 \begin{frame}{Latent Space: BIOT vs EB-JEPA (LDA Comparison)}
 
