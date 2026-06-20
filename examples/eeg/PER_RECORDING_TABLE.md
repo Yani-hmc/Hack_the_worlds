@@ -24,6 +24,7 @@ panel — including the SOTA models, which we run from their **official repos** 
 | FFCL | **official BIOT repo**, our data | 0.833 | 0.833 | 0.820 | 0.908 |
 | ContraWR | **official BIOT repo**, our data | 0.837 | 0.830 | 0.807 | 0.912 |
 | BIOT — vanilla (supervised) | **official `ycq091044/BIOT`**, our data | 0.837 | 0.829 | 0.805 | 0.903 |
+| ST-Transformer | **official BIOT repo**, our data | 0.833 | 0.826 | 0.802 | **0.925** |
 | EB-JEPA + corruption (VICReg frozen, 1 seed) | **ours** (JEPA) | 0.830 | 0.825 | 0.805 | 0.904 |
 | EB-JEPA + corruption (SIGReg frozen, 1 seed) | **ours** (JEPA) | — | 0.825 | 0.805 | 0.913 |
 | BIOT — pretrained (6-dataset ckpt) | **official `ycq091044/BIOT`**, our data | 0.833 | 0.824 | 0.798 | 0.882 |
@@ -33,7 +34,8 @@ panel — including the SOTA models, which we run from their **official repos** 
 | CNN-Transformer | **official BIOT repo**, our data | 0.804 | 0.802 | 0.784 | 0.885 |
 | SPaRCNet | **official BIOT repo**, our data | 0.801 | 0.800 | 0.783 | 0.905 |
 | JEPA-Transformer + multi-corpus (13k rec) | **ours** (ViT, 1 seed) | 0.804 | 0.798 | 0.773 | 0.872 |
-| ST-Transformer | **official BIOT repo**, our data | _re-running (job 76129; timed out first pass)_ | | | |
+
+All 5 official BIOT-repo baselines now complete (SPaRCNet, ContraWR, CNN-Transformer, FFCL, ST-Transformer).
 
 EEGNet's single-seed run was 0.824 BAcc / 0.913 AUROC; its 3-seed final-epoch mean is **0.812 ± .013**
 (used above for the fair comparison). LaBraM per-window = 0.806 BAcc / 0.855 AUROC / 0.913 AUC-PR.
