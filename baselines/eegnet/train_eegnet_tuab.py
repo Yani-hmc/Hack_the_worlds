@@ -176,6 +176,8 @@ def main():
     ap.add_argument("--batch-size", type=int, default=256)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--weight-decay", type=float, default=1e-4)
+    ap.add_argument("--dropout", type=float, default=0.5,
+                    help="0.5 is the canonical EEGNet value for cross-subject tasks")
     ap.add_argument("--n-windows", type=int, default=16)
     ap.add_argument("--num-workers", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
@@ -197,7 +199,7 @@ def main():
         persistent_workers=args.num_workers > 0)
 
     model = EEGNet(n_channels=19, n_times=2000, n_classes=2,
-                   kern_length=100).to(device)
+                   kern_length=100, dropout=args.dropout).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr,
                             weight_decay=args.weight_decay)
     # class weights handle TUAB's mild normal/abnormal imbalance
