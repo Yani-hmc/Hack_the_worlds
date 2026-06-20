@@ -1,5 +1,12 @@
 # Literature vs our empirical results — with sources to confirm manually
 
+> ⚠️ **For the authoritative literature SOTA table, see [`SOTA_TABLE.md`](SOTA_TABLE.md).**
+> Every cell there was checked against the actual PDF in the repo. The literature lines in this
+> file derived from a web-search summary mention EEGNet `0.764` and ShallowConvNet `~0.752` —
+> **those two numbers are hallucinations** (the cited papers don't contain them). Correct values
+> in `SOTA_TABLE.md` section D. The rest of this file (our own measured results in PART 2) is
+> accurate.
+
 Two clearly separated parts: **(1)** numbers we took from papers (and exactly where to check
 them), and **(2)** numbers we measured ourselves on Dalia. Plus a verification-confidence note,
 because some paper numbers we confirmed cell-by-cell and others came from a web-search summary.
