@@ -72,7 +72,11 @@ class EEG1DEncoder(nn.Module):
 
 
 def build_encoder(cfg):
-    """1D EEG encoder: strided Conv1d stack + global average pooling."""
+    """EEG encoder. cfg.encoder_type = "conv" (default, EEG1DEncoder) | "transformer"
+    (ViT-style attention encoder — the capacity upgrade for closing the SOTA gap)."""
+    if getattr(cfg, "encoder_type", "conv") == "transformer":
+        from examples.eeg.transformer_encoder import build_transformer_encoder
+        return build_transformer_encoder(cfg)
     return EEG1DEncoder(
         in_channels=cfg.in_channels,
         hidden=getattr(cfg, "hidden", 64),
