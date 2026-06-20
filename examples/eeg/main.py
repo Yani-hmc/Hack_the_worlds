@@ -111,6 +111,7 @@ class TwoViewVICReg(nn.Module):
         self.ssl_loss = getattr(cfg, "ssl_loss", "vicreg")
         if self.ssl_loss == "vicreg":
             self.criterion = VICRegLoss(
+                inv_coeff=getattr(cfg, "inv_coeff", 25.0),
                 std_coeff=getattr(cfg, "std_coeff", 25.0),
                 cov_coeff=getattr(cfg, "cov_coeff", 1.0),
             )

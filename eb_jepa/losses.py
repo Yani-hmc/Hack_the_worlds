@@ -304,10 +304,19 @@ class VC_IDM_Sim_Regularizer(torch.nn.Module):
 
 
 class VICRegLoss(nn.Module):
-    """VICReg loss combining invariance, variance (std), and covariance terms."""
+    """VICReg loss combining invariance, variance (std), and covariance terms.
 
-    def __init__(self, std_coeff=1.0, cov_coeff=1.0):
+    The three terms are weighted by ``inv_coeff``, ``std_coeff`` and ``cov_coeff``.
+    Bardes et al. (ICLR 2022) use (lambda, mu, nu) = (25, 25, 1) for the
+    (invariance, variance, covariance) terms respectively. ``inv_coeff`` defaults
+    to 1.0 to preserve the historical behaviour of every other example/test that
+    instantiates this loss; the EEG track sets it to 25 via config so its loss is
+    paper-correct.
+    """
+
+    def __init__(self, inv_coeff=1.0, std_coeff=1.0, cov_coeff=1.0):
         super().__init__()
+        self.inv_coeff = inv_coeff
         self.std_coeff = std_coeff
         self.cov_coeff = cov_coeff
         self.std_loss_fn = HingeStdLoss(std_margin=1.0)
@@ -332,7 +341,11 @@ class VICRegLoss(nn.Module):
         # Covariance loss (applied to both views and summed)
         cov_loss = self.cov_loss_fn(z1) + self.cov_loss_fn(z2)
 
-        total_loss = sim_loss + self.std_coeff * var_loss + self.cov_coeff * cov_loss
+        total_loss = (
+            self.inv_coeff * sim_loss
+            + self.std_coeff * var_loss
+            + self.cov_coeff * cov_loss
+        )
 
         return {
             "loss": total_loss,

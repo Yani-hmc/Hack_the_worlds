@@ -32,9 +32,10 @@ model:
   # --- two-view SSL objective (selectable) ---
   ssl_loss: vicreg      # vicreg (default) | sigreg (LeJEPA / BCS Gaussianity)
   projector_spec: "256-1024-1024-1024"  # MUST start with out_dim
-  # VICReg-only params
-  std_coeff: 25.0       # variance (anti-collapse) weight
-  cov_coeff: 1.0        # covariance (decorrelation) weight
+  # VICReg-only params — paper-correct (Bardes et al. 2022): (inv, var, cov) = (25, 25, 1)
+  inv_coeff: 25.0       # invariance (view-matching) weight — lambda
+  std_coeff: 25.0       # variance (anti-collapse) weight — mu
+  cov_coeff: 1.0        # covariance (decorrelation) weight — nu
   # SIGReg-only params (used when ssl_loss=sigreg)
   num_slices: 256       # number of random projections for BCS
   lmbd: 10.0            # weight on the BCS (Gaussianity) term
