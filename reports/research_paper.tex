@@ -463,9 +463,9 @@ augmentation combinations evaluated during the hackathon.
 \textbf{Data} \\
 \midrule
 \multicolumn{9}{l}{\textit{Conv1D encoder (0.4M parameters) -- spectral regularisation ablation}} \\
-Conv + VICReg$^{*}$ (base)          & 0.756 & 0.796 & 0.888 & -- & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ (base)          & 0.756 & 0.796 & 0.888 & 0.381 & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
 Conv + VICReg$^{*}$ + spec 0.05     & --    & 0.821 & 0.884 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + VICReg$^{*}$ + spec 0.1      & 0.765 & 0.836 & 0.887 & -- & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + VICReg$^{*}$ + spec 0.1      & 0.765 & 0.836 & 0.887 & \textbf{0.425} & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
 Conv + VICReg$^{*}$ + spec 0.3      & --    & 0.789 & 0.877 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
 Conv + VICReg$^{*}$ + spec 1.0      & --    & 0.785 & 0.874 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
 Conv + VICReg$^{*}$ + fftc 0.05     & --    & 0.807 & 0.887 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
@@ -477,32 +477,40 @@ Conv + VICReg$^{*}$ + corrupt (s0)  & 0.770 & 0.825 & 0.904 & 0.382 & WIN / REC-
 Conv + VICReg$^{*}$ + corrupt (s1)  & --    & 0.816 & 0.891 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
 Conv + VICReg$^{*}$ + corrupt (s2)  & --    & 0.818 & 0.906 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
 Conv + VICReg$^{*}$ + corrupt (big) & --    & 0.805 & 0.892 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
-Conv + corrupt + spec 0.1           & 0.765 & 0.836 & 0.887 & 0.425 & WIN / REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
+Conv + corrupt + spec 0.1           & --    & 0.802 & 0.899 & -- & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
 Conv + SIGReg + corrupt             & 0.775 & 0.825 & 0.904 & 0.363 & WIN / REC-WIN & Frozen & SIGReg & SSL \\
 \midrule
-\multicolumn{9}{l}{\textit{Conv1D encoder -- fine-tuning and multi-corpus}} \\
+\multicolumn{9}{l}{\textit{Conv1D encoder -- fine-tuning, multi-corpus, and new objectives}} \\
 Conv + VICReg$^{*}$ + corrupt (FT)  & --    & 0.812 & 0.908 & -- & REC-WIN & Fine-tuned & VICReg$^{*}$ & SSL \\
 Conv + VICReg$^{*}$ + multicorpus   & --    & 0.812 & --    & 0.394 & REC-WIN & Frozen & VICReg$^{*}$ & SSL \\
 Conv + multicorpus (FT)             & --    & 0.812 & --    & -- & REC-WIN & Fine-tuned & VICReg$^{*}$ & SSL \\
+Conv + Pred-JEPA (20ep)             & --    & 0.808 & 0.899 & -- & REC-WIN & Frozen & Pred-JEPA & SSL \\
+Conv + NaiveJEPA (20ep)             & --    & 0.779 & 0.863 & 0.389 & REC-WIN & Frozen & NaiveJEPA & SSL \\
 EMA-JEPA on Conv (150ep)            & --    & 0.764 & --    & -- & REC-WIN & Frozen & Pred-JEPA & SSL \\
 \midrule
 \multicolumn{9}{l}{\textit{LaBraM-style patch Transformer (1.2M parameters)}} \\
 LaBraM-style + VICReg$^{*}$         & 0.775$^{a}$ & -- & -- & -- & WIN & Frozen & VICReg$^{*}$ & SSL \\
 LaBraM-style + SIGReg               & 0.725$^{a}$ & -- & -- & -- & WIN & Frozen & SIGReg & SSL \\
+LaBraM-style + Pred-JEPA (20ep)     & -- & 0.647 & -- & -- & REC-WIN & Frozen & Pred-JEPA & SSL \\
 \midrule
 \multicolumn{9}{l}{\textit{BIOT-style FFT Transformer (1.2M parameters)}} \\
 BIOT-style + VICReg$^{*}$           & 0.775$^{a}$ & -- & -- & -- & WIN & Frozen & VICReg$^{*}$ & SSL \\
 BIOT-style + SIGReg                 & 0.783$^{a}$ & -- & -- & -- & WIN & Frozen & SIGReg & SSL \\
+BIOT-style + Pred-JEPA (20ep)       & -- & 0.790 & 0.866 & -- & REC-WIN & Frozen & Pred-JEPA & SSL \\
 \midrule
 \multicolumn{9}{l}{\textit{EEGPT-style channel-pool Transformer (0.8M parameters)}} \\
 EEGPT-style + VICReg$^{*}$          & collapsed & -- & -- & -- & WIN & Frozen & VICReg$^{*}$ & SSL \\
 EEGPT-style + SIGReg                & collapsed & -- & -- & -- & WIN & Frozen & SIGReg & SSL \\
-EEGPT-style + VICReg (fixed, ep.11) & pending & -- & -- & -- & -- & -- & VICReg & SSL \\
+EEGPT-style + Pred-JEPA (20ep)      & -- & 0.613 & 0.642 & -- & REC-WIN & Frozen & Pred-JEPA & SSL \\
+EEGPT-style + VICReg (fixed)        & -- & -- & -- & 0.182 & -- & Frozen & VICReg & SSL \\
+EEGPT-style + VICReg (no chan drop) & -- & -- & -- & 0.358 & -- & Frozen & VICReg & SSL \\
 \bottomrule
 \multicolumn{9}{l}{%
   ``Data'' column: SSL = TUAB SSL training split (2717 recordings, no labels).
   Multicorpus = TUAB+TUEV+TUSZ+TUEP (4$\times$ data).
-  BACC\textsubscript{TUEV} = 6-class macro BACC on TUEV event detection (frozen probe).}
+  BACC\textsubscript{TUEV} = 6-class macro BACC on TUEV event detection (frozen logistic probe).
+  Pred-JEPA = GRU predictive objective (collapsed; eval fixed, see \S\ref{sec:bugs}).
+  NaiveJEPA = I-JEPA-style temporal split, MSE only, no anti-collapse term.}
 \end{tabular}}
 \end{table}
 
