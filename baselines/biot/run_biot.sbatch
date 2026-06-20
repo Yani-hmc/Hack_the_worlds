@@ -4,7 +4,7 @@
 #SBATCH --reservation=Vivatech
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=16
-#SBATCH --time=03:00:00
+#SBATCH --time=01:00:00
 #SBATCH --output=biot_%x_%j.out
 # Run the OFFICIAL BIOT model from github.com/ycq091044/BIOT on our TUAB_PREPROCESSED
 # pipeline. Two modes:
@@ -46,12 +46,13 @@ fi
 echo "=== BIOT $TAG | n_channels=$N_CH | $(date) ==="
 echo "    PRETRAINED=${PRETRAINED:-(none, supervised from scratch)}"
 
-EPOCHS="${EPOCHS:-8}"            # reduced from 20 to keep all-windows mode within walltime
-N_WINDOWS="${N_WINDOWS:--1}"     # -1 = ALL non-overlapping windows (literature protocol)
-echo "    EPOCHS=$EPOCHS  N_WINDOWS=$N_WINDOWS"
+EPOCHS="${EPOCHS:-20}"          # train epochs (default 20; ok at N_TRAIN=16)
+N_TRAIN="${N_TRAIN:-16}"        # windows/rec at TRAIN (16 = fast, organizers' default)
+N_EVAL="${N_EVAL:--1}"          # windows/rec at EVAL (-1 = ALL non-overlapping, literature)
+echo "    EPOCHS=$EPOCHS  N_TRAIN=$N_TRAIN  N_EVAL=$N_EVAL"
 PYTHONPATH="$BIOT_REPO:$PYTHONPATH" \
     uv run python -m baselines.biot.adapter_biot \
         --epochs $EPOCHS --batch-size 128 --lr 1e-3 --n-channels $N_CH \
-        --n-windows $N_WINDOWS $EXTRA_ARGS
+        --n-windows-train $N_TRAIN --n-windows-eval $N_EVAL $EXTRA_ARGS
 
 echo "=== DONE BIOT $TAG ==="

@@ -135,9 +135,12 @@ def main():
     ap.add_argument("--n-channels", type=int, default=19)
     ap.add_argument("--sample-length", type=int, default=2000,
                     help="timesteps per window (sampling_rate*seconds = 200*10)")
-    ap.add_argument("--n-windows", type=int, default=-1,
-                    help="-1 = ALL non-overlapping (literature protocol, ~175/rec); "
-                         "16 = legacy evenly-spaced subsample (organizers' default)")
+    ap.add_argument("--n-windows-train", type=int, default=16,
+                    help="windows/rec at TRAIN (16 = fast, organizers' default; "
+                         "-1 = ALL non-overlapping, much slower)")
+    ap.add_argument("--n-windows-eval", type=int, default=-1,
+                    help="windows/rec at EVAL (-1 = ALL non-overlapping, "
+                         "literature protocol — the fair per-recording vote; 16 = legacy)")
     ap.add_argument("--num-workers", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
@@ -148,8 +151,8 @@ def main():
     print(f"[{tag}] device={device} n_channels={args.n_channels} "
           f"sample_length={args.sample_length}", flush=True)
 
-    train_ds = WindowDataset("train", args.n_windows)
-    eval_ds = WindowDataset("eval", args.n_windows)
+    train_ds = WindowDataset("train", args.n_windows_train)
+    eval_ds = WindowDataset("eval", args.n_windows_eval)
     train_loader = torch.utils.data.DataLoader(
         train_ds, batch_size=args.batch_size, shuffle=True,
         num_workers=args.num_workers, pin_memory=True, drop_last=True,

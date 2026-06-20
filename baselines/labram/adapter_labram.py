@@ -193,8 +193,10 @@ def main():
     ap.add_argument("--weight-decay", type=float, default=0.05)
     ap.add_argument("--warmup-epochs", type=int, default=2)
     ap.add_argument("--n-channels", type=int, default=19)
-    ap.add_argument("--n-windows", type=int, default=-1,
-                    help="-1 = ALL non-overlapping (literature protocol); 16 = legacy")
+    ap.add_argument("--n-windows-train", type=int, default=16,
+                    help="windows/rec at TRAIN (16 = fast; -1 = all non-overlapping)")
+    ap.add_argument("--n-windows-eval", type=int, default=-1,
+                    help="windows/rec at EVAL (-1 = all non-overlapping, literature protocol)")
     ap.add_argument("--num-workers", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--smoke", action="store_true",
@@ -227,8 +229,8 @@ def main():
     else:
         params = model.parameters()
 
-    train_ds = WindowDataset("train", args.n_windows)
-    eval_ds = WindowDataset("eval", args.n_windows)
+    train_ds = WindowDataset("train", args.n_windows_train)
+    eval_ds = WindowDataset("eval", args.n_windows_eval)
     train_loader = torch.utils.data.DataLoader(
         train_ds, batch_size=args.batch_size, shuffle=True,
         num_workers=args.num_workers, pin_memory=True, drop_last=True,

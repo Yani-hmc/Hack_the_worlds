@@ -4,7 +4,7 @@
 #SBATCH --reservation=Vivatech
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=16
-#SBATCH --time=08:00:00
+#SBATCH --time=03:00:00
 #SBATCH --output=biotzoo_%j.out
 # Reproduce the LaBraM-Table-1 baseline panel from the OFFICIAL BIOT repo
 # (github.com/ycq091044/BIOT) on OUR TUAB_PREPROCESSED pipeline. One GPU
@@ -24,9 +24,10 @@ fi
 # pretrained-weight constraint), so it is a true apples-to-apples panel.
 N_CH=19
 MODELS="${MODELS:-SPaRCNet ContraWR CNNTransformer FFCL STTransformer}"
-EPOCHS="${EPOCHS:-8}"          # reduced from 20 to keep all-windows mode within walltime
-N_WINDOWS="${N_WINDOWS:--1}"   # -1 = ALL non-overlapping windows (literature protocol)
-echo "EPOCHS=$EPOCHS  N_WINDOWS=$N_WINDOWS  MODELS=$MODELS"
+EPOCHS="${EPOCHS:-20}"        # train epochs (default 20; ok at N_TRAIN=16)
+N_TRAIN="${N_TRAIN:-16}"      # windows/rec at TRAIN (16 = fast)
+N_EVAL="${N_EVAL:--1}"        # windows/rec at EVAL (-1 = ALL non-overlapping, literature)
+echo "EPOCHS=$EPOCHS  N_TRAIN=$N_TRAIN  N_EVAL=$N_EVAL  MODELS=$MODELS"
 
 for M in $MODELS; do
     echo ""
@@ -36,7 +37,8 @@ for M in $MODELS; do
     PYTHONPATH="$BIOT_REPO:$PYTHONPATH" \
         uv run python -m baselines.biot.adapter_baselines \
             --model "$M" --epochs $EPOCHS --batch-size 128 --lr 1e-3 \
-            --n-channels $N_CH --n-windows $N_WINDOWS || echo "!! $M FAILED (continuing)"
+            --n-channels $N_CH --n-windows-train $N_TRAIN --n-windows-eval $N_EVAL \
+            || echo "!! $M FAILED (continuing)"
 done
 echo ""
 echo "=== DONE biotzoo: $MODELS ==="

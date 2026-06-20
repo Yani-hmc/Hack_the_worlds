@@ -101,8 +101,10 @@ def main():
     ap.add_argument("--weight-decay", type=float, default=1e-4)
     ap.add_argument("--dropout", type=float, default=0.5,
                     help="0.5 is the canonical EEGNet value for cross-subject tasks")
-    ap.add_argument("--n-windows", type=int, default=-1,
-                    help="-1 = ALL non-overlapping (literature protocol); 16 = legacy")
+    ap.add_argument("--n-windows-train", type=int, default=16,
+                    help="windows/rec at TRAIN (16 = fast; -1 = all non-overlapping)")
+    ap.add_argument("--n-windows-eval", type=int, default=-1,
+                    help="windows/rec at EVAL (-1 = all non-overlapping, literature protocol)")
     ap.add_argument("--num-workers", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
@@ -111,8 +113,8 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[eegnet] device={device}", flush=True)
 
-    train_ds = WindowDataset("train", args.n_windows)
-    eval_ds = WindowDataset("eval", args.n_windows)
+    train_ds = WindowDataset("train", args.n_windows_train)
+    eval_ds = WindowDataset("eval", args.n_windows_eval)
     train_loader = torch.utils.data.DataLoader(
         train_ds, batch_size=args.batch_size, shuffle=True,
         num_workers=args.num_workers, pin_memory=True, drop_last=True,
