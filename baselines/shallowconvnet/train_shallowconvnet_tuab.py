@@ -11,15 +11,13 @@ RUN ON DALIA (compute node, NOT login):
          --epochs 30 --batch-size 256 --lr 6.25e-4
 ================================================================================
 
-ShallowFBCSPNet / ShallowConvNet is the classic strong ConvNet baseline for
-TUAB-abnormal classification (Gemein et al., NeuroImage 2020 report ~85% balanced
-accuracy with braindecode ConvNets). Reimplemented in-file in PyTorch, matching
-braindecode's `ShallowFBCSPNet` (BSD-3-Clause):
-    temporal Conv2d (1, 25) -> spatial Conv2d (C, 1) -> BN
-    -> square -> AvgPool(1, 75) stride (1, 15) -> log -> Dropout
-    -> Conv2d classifier (1, t') -> logits
-The square/log "pool" emulates a band-power feature; designed for ~250 Hz but
-works on our 200 Hz [19, 2000] windows.
+ShallowFBCSPNet (= the "ShallowConvNet" of Schirrmeister 2017, arXiv:1703.05051 /
+arXiv:1708.08012). We use the CANONICAL implementation `braindecode.models.ShallowFBCSPNet`
+(BSD-3-Clause) -- maintained by Robin Schirrmeister himself, the paper's first author.
+Architecture: temporal Conv2d (1,25) -> spatial Conv2d (C,1) -> BN -> square ->
+AvgPool(1,75) stride 15 -> log -> Dropout -> Conv2d classifier -> logits. The square/log
+"pool" emulates a band-power feature; designed for ~250 Hz, works on our 200 Hz
+[19, 2000] windows. No in-file reimplementation -- using upstream removes reimpl drift.
 
 Reuses OUR dataset (`eb_jepa.datasets.eeg.dataset`) — exact spec:
     19 channels, 200 Hz, 10 s -> [B, 19, 2000], per-channel z-scored,
@@ -33,51 +31,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from braindecode.models import ShallowFBCSPNet
+
 from eb_jepa.datasets.eeg.dataset import EEGConfig, EEGDataset
-
-
-# --------------------------------------------------------------------------- #
-# ShallowConvNet — in-file PyTorch (braindecode ShallowFBCSPNet equivalent)
-# --------------------------------------------------------------------------- #
-class _Square(nn.Module):
-    def forward(self, x):
-        return x * x
-
-
-class _SafeLog(nn.Module):
-    def forward(self, x):
-        return torch.log(torch.clamp(x, min=1e-6))
-
-
-class ShallowConvNet(nn.Module):
-    def __init__(self, n_channels=19, n_times=2000, n_classes=2,
-                 n_filters_time=40, n_filters_spat=40,
-                 filter_time_length=25, pool_time_length=75,
-                 pool_time_stride=15, dropout=0.5):
-        super().__init__()
-        self.conv_time = nn.Conv2d(1, n_filters_time, (1, filter_time_length))
-        self.conv_spat = nn.Conv2d(n_filters_time, n_filters_spat,
-                                   (n_channels, 1), bias=False)
-        self.bn = nn.BatchNorm2d(n_filters_spat)
-        self.square = _Square()
-        self.pool = nn.AvgPool2d((1, pool_time_length), (1, pool_time_stride))
-        self.safelog = _SafeLog()
-        self.drop = nn.Dropout(dropout)
-        with torch.no_grad():
-            d = self._features(torch.zeros(1, 1, n_channels, n_times)).shape[1]
-        self.classifier = nn.Linear(d, n_classes)
-
-    def _features(self, x):
-        x = self.conv_time(x)                 # [B, Ft, C, T']
-        x = self.bn(self.conv_spat(x))        # [B, Fs, 1, T']
-        x = self.square(x)
-        x = self.pool(x)
-        x = self.safelog(x)
-        x = self.drop(x)
-        return torch.flatten(x, 1)
-
-    def forward(self, x):                      # x: [B, C, T]
-        return self.classifier(self._features(x.unsqueeze(1)))
 
 
 # --------------------------------------------------------------------------- #
@@ -164,7 +120,9 @@ def main():
         num_workers=args.num_workers, pin_memory=True,
         persistent_workers=args.num_workers > 0)
 
-    model = ShallowConvNet(n_channels=19, n_times=2000, n_classes=2).to(device)
+    # Canonical implementation by Robin Schirrmeister himself (BSD-3-Clause).
+    # ShallowFBCSPNet expects [B, n_chans, n_times] -- our WindowDataset yields that.
+    model = ShallowFBCSPNet(n_chans=19, n_outputs=2, n_times=2000).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr,
                             weight_decay=args.weight_decay)
     crit = nn.CrossEntropyLoss()

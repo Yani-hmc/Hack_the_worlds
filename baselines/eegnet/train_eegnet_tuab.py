@@ -17,14 +17,11 @@ This is a literature baseline for Phase 0. It reuses OUR dataset
     19 channels, 200 Hz, 10 s windows -> [B, 19, 2000], per-channel z-scored,
     patient-disjoint train/eval.
 
-EEGNet (Lawhern et al., 2018, arXiv:1611.08024) reimplemented in-file in PyTorch.
-Architecture matches the canonical Keras reference `vlawhern/arl-eegmodels` and
-braindecode's `EEGNetv4`:
-    Block 1: temporal Conv2d (1, kernLength) -> BN
-             -> DepthwiseConv2d (C, 1), depth D -> BN -> ELU -> AvgPool(1,4) -> Drop
-    Block 2: SeparableConv2d (1, 16) -> BN -> ELU -> AvgPool(1,8) -> Drop
-    Classifier: flatten -> Linear -> logits
-with kernLength = sfreq // 2 = 100 (half the 200 Hz sample rate), F1=8, D=2, F2=16.
+EEGNet (Lawhern et al., 2018, arXiv:1611.08024). We use the CANONICAL PyTorch port
+`braindecode.models.EEGNetv4` (BSD-3-Clause), maintained by the braindecode team and
+used in every PyTorch EEG paper. Lawhern's official repo (vlawhern/arl-eegmodels) is
+Keras/TF; EEGNetv4 mirrors its architecture 1:1 in PyTorch. No in-file reimplementation
+here -- using the upstream implementation removes "reimpl drift" as a confound.
 
 We train PER-WINDOW (one [19,2000] window = one labelled example, label inherited
 from its recording), then report metrics BOTH per-window AND aggregated to
@@ -43,64 +40,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from braindecode.models import EEGNetv4
+
 from eb_jepa.datasets.eeg.dataset import EEGConfig, EEGDataset
-
-
-# --------------------------------------------------------------------------- #
-# EEGNet (Lawhern et al. 2018) — in-file PyTorch reimplementation
-# --------------------------------------------------------------------------- #
-class Conv2dSamePad(nn.Conv2d):
-    """Conv2d with TensorFlow-style 'same' padding along the time axis."""
-
-    def forward(self, x):
-        ih, iw = x.shape[-2:]
-        kh, kw = self.weight.shape[-2:]
-        pad_w = max((iw - 1) * self.stride[1] + (kw - 1) * self.dilation[1] + 1 - iw, 0)
-        pad_h = max((ih - 1) * self.stride[0] + (kh - 1) * self.dilation[0] + 1 - ih, 0)
-        x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2])
-        return self._conv_forward(x, self.weight, self.bias)
-
-
-class EEGNet(nn.Module):
-    """Compact CNN. Input [B, C, T]; internally treated as [B, 1, C, T]."""
-
-    def __init__(self, n_channels=19, n_times=2000, n_classes=2,
-                 F1=8, D=2, kern_length=100, dropout=0.25):
-        super().__init__()
-        F2 = F1 * D
-        self.block1_temporal = Conv2dSamePad(
-            1, F1, (1, kern_length), bias=False)
-        self.bn1 = nn.BatchNorm2d(F1)
-        # depthwise spatial conv across all channels
-        self.depthwise = nn.Conv2d(F1, F1 * D, (n_channels, 1),
-                                   groups=F1, bias=False)
-        self.bn2 = nn.BatchNorm2d(F1 * D)
-        self.pool1 = nn.AvgPool2d((1, 4))
-        self.drop1 = nn.Dropout(dropout)
-        # separable conv = depthwise (1,16) + pointwise (1,1)
-        self.sep_depth = Conv2dSamePad(F1 * D, F1 * D, (1, 16),
-                                       groups=F1 * D, bias=False)
-        self.sep_point = nn.Conv2d(F1 * D, F2, (1, 1), bias=False)
-        self.bn3 = nn.BatchNorm2d(F2)
-        self.pool2 = nn.AvgPool2d((1, 8))
-        self.drop2 = nn.Dropout(dropout)
-        # classifier head — infer flattened dim from a dry run
-        with torch.no_grad():
-            d = self._features(torch.zeros(1, 1, n_channels, n_times)).shape[1]
-        self.classifier = nn.Linear(d, n_classes)
-
-    def _features(self, x):
-        x = self.bn1(self.block1_temporal(x))
-        x = self.bn2(self.depthwise(x))
-        x = self.drop1(self.pool1(F.elu(x)))
-        x = self.sep_point(self.sep_depth(x))
-        x = self.bn3(x)
-        x = self.drop2(self.pool2(F.elu(x)))
-        return torch.flatten(x, 1)
-
-    def forward(self, x):              # x: [B, C, T]
-        x = x.unsqueeze(1)             # -> [B, 1, C, T]
-        return self.classifier(self._features(x))
 
 
 # --------------------------------------------------------------------------- #
@@ -198,8 +140,12 @@ def main():
         num_workers=args.num_workers, pin_memory=True,
         persistent_workers=args.num_workers > 0)
 
-    model = EEGNet(n_channels=19, n_times=2000, n_classes=2,
-                   kern_length=100, dropout=args.dropout).to(device)
+    # Canonical PyTorch port from braindecode (BSD-3-Clause). EEGNetv4 expects
+    # [B, n_chans, n_times] -- our WindowDataset yields exactly that shape.
+    # drop_prob is braindecode's name for the dropout parameter; honors the
+    # --dropout CLI flag (0.5 = canonical cross-subject default per Yani 2cf7a0e).
+    model = EEGNetv4(n_chans=19, n_outputs=2, n_times=2000,
+                     drop_prob=args.dropout).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr,
                             weight_decay=args.weight_decay)
     # class weights handle TUAB's mild normal/abnormal imbalance
