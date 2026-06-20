@@ -156,23 +156,23 @@ Prisoners in Plato's cave see only \textbf{shadows on the wall}, not the real ob
 \begin{frame}{Finding 1: Corruption Augmentation as Dominant Lever}
 \begin{columns}[T]
 \column{0.55\textwidth}
-{\small
-\begin{tabular}{lcc}
+{\scriptsize
+\begin{tabular}{p{3.5cm}cc}
 \toprule
 Variant & BACC\textsubscript{REC} & $\Delta$ \\
 \midrule
 Base VICReg (no corruption) & 0.796 & -- \\
-\textbf{+ Corruption} (mask+spikes) & \textbf{0.819 ± .004} & \textcolor{good}{+0.023} \\
-+ Spectral loss & 0.795--0.813 & $\approx$0 \\
-Scaled encoder & 0.805 & $-$0.014 \\
-4× more data & 0.812 & $-$0.007 \\
+\textbf{+ Corruption} (3-seed) & \textbf{0.819±.004} & \textcolor{good}{+0.023} \\
+\textbf{+ spectral} (best run) & \textbf{0.836} & \textcolor{good}{+0.040} \\
++ spectral + stylised-facts & 0.823±.007 & $\approx$0 \\
+1.35M conv (3-seed) & 0.812±.021 & $-$0.007 \\
+25\% pretraining data & 0.816 & $-$0.008 \\
 \bottomrule
 \end{tabular}
 }
 
-\vspace{0.7em}
-\textbf{3-seed average (robust):}\\
-$0.819 \pm 0.004$ (not a lucky seed)
+\vspace{0.5em}
+\textbf{3-seed robust avg:} $0.819 \pm 0.004$ (corruption only); single best run w/ spectral loss: 0.836.
 
 \column{0.42\textwidth}
 \textbf{Why corruption helps:}
@@ -185,9 +185,10 @@ $0.819 \pm 0.004$ (not a lucky seed)
 \vspace{0.5em}
 \textbf{What does NOT help:}
 \begin{itemize}
-  \item More encoder capacity → same plateau
-  \item 4× pretraining data → no gain
-  \item[$\Rightarrow$] Bottleneck is \emph{architecture}, not scale
+  \item Scaling 0.4M $\to$ 1.35M params → same plateau
+  \item 4$\times$ less pretraining data costs only 0.8\,pp → not data-starved
+  \item Piling stylised-facts terms on top of spectral → flat
+  \item[$\Rightarrow$] Bottleneck is \emph{architecture}, not scale or data
 \end{itemize}
 \end{columns}
 \end{frame}
@@ -230,7 +231,8 @@ $\lambda_{\rm inv}$ & BACC\textsubscript{REC} & Seeds \\
 Sweet spot at $\{1,5\}$; gap widens monotonically.
 
 \vspace{0.3em}
-\textcolor{accent}{\footnotesize First evidence that EEG SSL requires weaker view-invariance than vision SSL.}
+\textcolor{accent}{\footnotesize First evidence that EEG SSL requires weaker view-invariance than vision SSL.
+Confirmed on a second, independent 1.35M+spectral config: $1(0.824){>}5(0.820){>}10(0.814){>}25(0.804)$, same monotone order.}
 \end{columns}
 \end{frame}
 
@@ -289,22 +291,26 @@ VICReg + corruption & 0.819 ± .004 & 4 \\
 \begin{frame}{Encoder Ranking: Simple Conv Wins}
 \begin{columns}[T]
 \column{0.50\textwidth}
-{\small
-\begin{tabular}{llcc}
+\textbf{Validated, bug-free (capacity-matched, BACC):}
+{\scriptsize
+\begin{tabular}{lccc}
 \toprule
-Encoder & Type & Params & BACC \\
+Encoder & Type & Params & BACC\textsubscript{REC} \\
 \midrule
-\textcolor{good}{\textbf{Conv1D}} & Strided conv & 0.4M & \textbf{0.819} \\
-BIOT-style    & FFT patches  & 1.2M & 0.790 \\
-LaBraM-style  & Raw patches  & 1.2M & ${\sim}0.775^\dagger$ \\
-\textcolor{warn}{EEGPT} & Ch-pool Tr & 0.8M & \textcolor{warn}{collapsed} \\
+\textcolor{good}{\textbf{Conv1D}} & Strided & 1.35M & \textbf{0.824} \\
+Transformer & Scratch & 1.29M & \textcolor{warn}{0.725 ($-$10pp)} \\
 \bottomrule
-\multicolumn{4}{l}{\footnotesize $^\dagger$accuracy, not BACC (early eval)}
 \end{tabular}
 }
 
+\vspace{0.4em}
+{\footnotesize\textcolor{muted}{Early exploration (pre-bugfix VICReg coeffs, raw accuracy not BACC) had
+also flagged LaBraM-/BIOT-style patch transformers ($\sim$0.78--0.84 acc) and EEGPT (below-random-floor
+collapse) as weaker than conv --- directionally consistent with the validated result above, but not
+re-measured post-fix.}}
+
 \vspace{0.3em}
-\textbf{EEGPT failure:} cross-attention pools 19\,ch $\to$ 1 token; channel-drop creates incompatible views.
+\textbf{EEGPT failure (confirmed, post-fix):} cross-attention pools 19\,ch $\to$ 1 token; channel-drop creates incompatible views.
 Fix: remove channel-drop $\to$ TUEV 0.182 $\to$ 0.358.
 
 \column{0.48\textwidth}
@@ -362,16 +368,17 @@ EEGNet (supervised)                    & 0.796 & 0.882 \\
 \textbf{Protocol}: freeze TUAB-pretrained encoder; train linear probe on TUEV (zero TUEV labels during SSL).
 
 \vspace{0.4em}
-{\small
-\begin{tabular}{lcc}
+{\scriptsize
+\begin{tabular}{p{3.6cm}cc}
 \toprule
-Method & TUEV BACC & TUEV labels? \\
+Method & TUEV BACC & Labels? \\
 \midrule
 ST-Transformer  & 0.3385 & \textcolor{warn}{full train} \\
 CNN-Transformer & 0.4100 & \textcolor{warn}{full train} \\
 \midrule
-\textbf{VICReg (TUAB SSL)}  & \textbf{0.382} & \textcolor{good}{probe only} \\
-\textbf{NaiveJEPA (TUAB)}   & \textbf{0.389} & \textcolor{good}{probe only} \\
+VICReg+corrupt (TUAB SSL) & 0.382 & \textcolor{good}{probe only} \\
+NaiveJEPA (TUAB SSL) & 0.389 & \textcolor{good}{probe only} \\
+\textbf{+spectral} (best) & \textbf{0.425} & \textcolor{good}{probe only} \\
 \midrule
 FFCL            & 0.4551 & \textcolor{warn}{full train} \\
 ContraWR        & 0.4664 & \textcolor{warn}{full train} \\
@@ -493,13 +500,36 @@ $\lambda_{\rm inv}$ sweep $\{1,5,10,25\}$ confirms monotone ordering: EEG SSL pr
 \end{block}
 \end{frame}
 
+\begin{frame}{}
+\vspace{1.5em}
+\begin{center}
+{\Huge\bfseries Thank you}\\[1em]
+{\large\textcolor{muted}{EB-JEPA for Clinical EEG --- self-supervised, frozen, label-free pretraining}}\\[1.5em]
+{\large Questions welcome}
+\end{center}
+\vspace{1em}
+\begin{center}
+\begin{tikzpicture}[font=\footnotesize]
+  \node[draw=accent!60, fill=accent!8, rounded corners, minimum width=3.4cm, align=center, minimum height=0.8cm]
+    (a) at (0,0) {0.836 BACC\textsubscript{REC} (best)\\\footnotesize 0.819$\pm$.004 robust 3-seed};
+  \node[draw=good!60, fill=good!8, rounded corners, minimum width=3.4cm, align=center, minimum height=0.8cm]
+    (b) at (4.2,0) {Corruption: +2.3\,pp\\\footnotesize dominant lever};
+  \node[draw=warn!60, fill=warn!8, rounded corners, minimum width=3.4cm, align=center, minimum height=0.8cm]
+    (c) at (8.4,0) {$\lambda_{\rm inv}{=}1$ beats 25\\\footnotesize EEG-specific finding};
+\end{tikzpicture}
+\end{center}
+\vspace{1em}
+\begin{center}\textcolor{muted}{\footnotesize Backup slides follow: per-recording table, $\lambda_{\rm inv}$ ablation.}\end{center}
+\end{frame}
+
 \begin{frame}{Backup: Per-Recording Table (Clinical Metric)}
-{\small
+\small
 \begin{tabular}{lccc}
 \toprule
 Model & BACC\textsubscript{REC} & AUROC & Eval \\
 \midrule
-Conv + VICReg + corruption (3 seeds) & \textbf{0.819 ± .004} & \textbf{0.900 ± .006} & Frozen \\
+Conv + VICReg + spectral 0.1 (best single run) & \textbf{0.836} & 0.887 & Frozen \\
+Conv + VICReg + corruption (3 seeds) & 0.819 ± .004 & \textbf{0.900 ± .006} & Frozen \\
 Conv + SIGReg + corruption           & 0.825 & 0.913 & Frozen \\
 Conv + NaiveJEPA                     & 0.779 & 0.863 & Frozen \\
 Conv + VICReg + corruption (FT, 3s)  & 0.812 ± .004 & 0.908 ± .006 & Fine-tuned \\
@@ -508,7 +538,6 @@ EEGNet (supervised)                  & 0.812 & 0.882 & -- \\
 LaBraM-Base (per-win only) & \textit{0.814\textsubscript{WIN}} & \textit{0.902\textsubscript{WIN}} & FT \\
 \bottomrule
 \end{tabular}
-}
 
 \vspace{0.4em}
 \textcolor{muted}{\footnotesize Per-recording = mean-pool 16 windows/patient.
@@ -516,7 +545,7 @@ Not directly comparable to per-window literature. Best per-window: 0.775 (SIGReg
 \end{frame}
 
 \begin{frame}{Backup: VICReg $\lambda_{\rm inv}$ Ablation}
-{\small
+\small
 \begin{tabular}{lccc}
 \toprule
 $\lambda_{\rm inv}$ & BACC\textsubscript{REC} & AUROC & Note \\
@@ -526,9 +555,9 @@ $\lambda_{\rm inv}$ & BACC\textsubscript{REC} & AUROC & Note \\
 10          & 0.814 & 0.900 & slight drop \\
 25 (paper)  & 0.789 ± .005 & 0.882 ± .004 & invariance dominates \\
 \midrule
-\multicolumn{4}{l}{\footnotesize Sweet spot $\lambda \in \{1,5\}$; gap vs $\lambda=25$: 3\,pp, $\approx6\sigma$.}
+\multicolumn{4}{l}{\footnotesize Sweet spot $\lambda \in \{1,5\}$; gap vs $\lambda=25$: 3\,pp, $\approx6\sigma$.}\\
+\multicolumn{4}{l}{\footnotesize 0.4M corruption-only config above; confirmed on independent 1.35M+spectral config: $1(.824){>}5(.820){>}10(.814){>}25(.804)$.}
 \end{tabular}
-}
 \end{frame}
 
 \end{document}
