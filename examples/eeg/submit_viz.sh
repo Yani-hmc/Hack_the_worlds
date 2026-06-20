@@ -13,15 +13,13 @@ PYTHON=/lustre/work/vivatech-slightlyunawarefc/yhammache/venvs/eb_jepa_aarch64/b
 REPO=/lustre/work/vivatech-slightlyunawarefc/tvasnier/eb_jepa
 SCRIPT=$REPO/examples/eeg/viz_latents.py
 
-# ── s'assurer que les librairies sont là (aarch64) ───────────────────────────
-echo "=== vérification / install des dépendances ==="
-$PYTHON -m pip install --quiet --upgrade \
-    scikit-learn \
-    umap-learn \
-    matplotlib
+# ── vérifier que les libs sont bien là ───────────────────────────────────────
+echo "=== check deps ==="
+$PYTHON -c "import sklearn; print('sklearn', sklearn.__version__)"
+$PYTHON -c "import umap; print('umap ok')"
+$PYTHON -c "import matplotlib; print('matplotlib', matplotlib.__version__)"
 
 # ── meilleur modèle : Conv1D + VICReg (λ=1) + corruption  (BACC 0.819 ± .004) ──
-# Changer CKPT pour tester un autre checkpoint
 CKPT=${CKPT:-/lustre/work/vivatech-slightlyunawarefc/tvasnier/checkpoints/eeg/corrupt/latest.pth.tar}
 OUT=${OUT:-/lustre/work/vivatech-slightlyunawarefc/tcourtois/viz_out/$(basename $(dirname $CKPT))}
 
