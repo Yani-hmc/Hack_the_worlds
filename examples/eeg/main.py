@@ -12,222 +12,179 @@ The downstream probe + metric is the third `# TODO`, in eval.py.
 
 Run:  python -m examples.eeg.main --fname examples/eeg/cfgs/train.yaml
 """
-import copy
 import os
 import sys
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from omegaconf import OmegaConf
 
-from eb_jepa.architectures import Projector, RNNPredictor
 from eb_jepa.datasets.eeg.dataset import EEGConfig, make_loader
-from eb_jepa.losses import BCS, CovarianceLoss, HingeStdLoss, VICRegLoss
-from eb_jepa.nn_utils import init_module_weights
-from examples.eeg.encoders import BIOTEncoder, EEGPTEncoder, LaBraMEncoder
 
 # Reuse the eb_jepa core — DO NOT reimplement these:
 #   eb_jepa.architectures: Projector (MLP), RNNPredictor (GRU)
 #   eb_jepa.losses:        VICRegLoss (inv+var+cov), VCLoss (variance+covariance)
+from eb_jepa.architectures import Projector
+from eb_jepa.losses import BCS, VICRegLoss
+from examples.eeg.spectral_losses import (MultiScaleSpectralLoss,
+                                          FFTMagConsistencyLoss)
 
 
 # --------------------------------------------------------------------------- #
-# 1) ENCODER
+# 1) ENCODER  — # TODO
 # --------------------------------------------------------------------------- #
 class EEG1DEncoder(nn.Module):
-    """Strided Conv1d stack over [B, C=n_channels, T] -> pooled [B, D].
+    """1D conv encoder over EEG windows [B, C=19, T].
 
-    Each block halves the time axis (kernel 7, stride 2, BatchNorm1d + GELU).
-    `represent()` global-average-pools the final conv map; `frames()` exposes
-    the pre-pool sequence for a future predictive-JEPA objective.
+    A stack of strided Conv1d blocks (kernel 7, stride 2, BatchNorm + GELU)
+    halves the time axis each block; global average pooling then yields a
+    [B, out_dim] representation. `frames()` exposes the pre-pool latent
+    sequence [B, L, out_dim] for the optional predictive-JEPA objective.
     """
 
-    def __init__(self, in_channels: int, hidden: int, depth: int, out_dim: int,
-                 kernel_size: int = 7):
+    def __init__(self, in_channels=19, hidden=64, out_dim=256, depth=4, kernel=7):
         super().__init__()
-        widths = [in_channels] + [hidden * (2 ** i) for i in range(depth)]
-        blocks = []
-        for c_in, c_out in zip(widths[:-1], widths[1:]):
-            blocks.append(nn.Conv1d(c_in, c_out, kernel_size=kernel_size, stride=2,
-                                     padding=kernel_size // 2, bias=False))
-            blocks.append(nn.BatchNorm1d(c_out))
-            blocks.append(nn.GELU())
-        self.conv = nn.Sequential(*blocks)
-        self.out_proj = nn.Conv1d(widths[-1], out_dim, kernel_size=1)
+        widths = [hidden * (2 ** i) for i in range(depth - 1)] + [out_dim]
+        blocks, c_in = [], in_channels
+        for c_out in widths:
+            blocks += [
+                nn.Conv1d(c_in, c_out, kernel_size=kernel, stride=2,
+                          padding=kernel // 2, bias=False),
+                nn.BatchNorm1d(c_out),
+                nn.GELU(),
+            ]
+            c_in = c_out
+        self.backbone = nn.Sequential(*blocks)
+        self.pool = nn.AdaptiveAvgPool1d(1)
         self.out_dim = out_dim
-        self.apply(init_module_weights)
 
-    def frames(self, x):
-        """[B, C, T] -> [B, F, D] latent sequence (pre pooling)."""
-        h = self.conv(x)            # [B, C', T']
-        h = self.out_proj(h)        # [B, D, T']
-        self.n_frames = h.shape[-1]
-        return h.transpose(1, 2)    # [B, T', D]
+    def feature_map(self, x):       # [B, C, T] -> [B, out_dim, L]
+        return self.backbone(x)
 
-    def represent(self, x):
-        """[B, C, T] -> [B, D] global-average-pooled representation."""
-        return self.frames(x).mean(dim=1)
+    def represent(self, x):         # [B, C, T] -> [B, out_dim]
+        return self.pool(self.feature_map(x)).flatten(1)
 
+    def frames(self, x):            # [B, C, T] -> [B, L, out_dim]
+        return self.feature_map(x).transpose(1, 2)
 
-_PATCH_ENCODERS = {"labram": LaBraMEncoder, "eegpt": EEGPTEncoder, "biot": BIOTEncoder}
+    def forward(self, x):
+        return self.represent(x)
 
 
 def build_encoder(cfg):
-    """Build the EEG encoder selected by `cfg.encoder_type`:
-      * "conv" (default)        -> EEG1DEncoder (strided Conv1d stack)
-      * "labram"/"eegpt"/"biot" -> architecture-inspired patch transformers
-                                    (see examples/eeg/encoders.py)
-    """
-    encoder_type = cfg.get("encoder_type", "conv")
-    if encoder_type == "conv":
-        return EEG1DEncoder(
-            in_channels=cfg.in_channels,
-            hidden=cfg.get("hidden", 64),
-            depth=cfg.get("depth", 4),
-            out_dim=cfg.out_dim,
-            kernel_size=cfg.get("kernel_size", 7),
-        )
-    if encoder_type in _PATCH_ENCODERS:
-        return _PATCH_ENCODERS[encoder_type](
-            in_channels=cfg.in_channels,
-            window_len=cfg.get("window_len", 2000),
-            patch_len=cfg.get("patch_len", 200),
-            embed_dim=cfg.get("embed_dim", 128),
-            tr_depth=cfg.get("tr_depth", 4),
-            n_heads=cfg.get("n_heads", 4),
-            mlp_ratio=cfg.get("mlp_ratio", 4.0),
-            dropout=cfg.get("dropout", 0.1),
-            out_dim=cfg.out_dim,
-        )
-    raise ValueError(f"unknown model.encoder_type={encoder_type!r}")
+    """EEG encoder. cfg.encoder_type = "conv" (default, EEG1DEncoder) | "transformer"
+    (ViT-style attention encoder — the capacity upgrade for closing the SOTA gap)."""
+    if getattr(cfg, "encoder_type", "conv") == "transformer":
+        from examples.eeg.transformer_encoder import build_transformer_encoder
+        return build_transformer_encoder(cfg)
+    return EEG1DEncoder(
+        in_channels=cfg.in_channels,
+        hidden=getattr(cfg, "hidden", 64),
+        out_dim=cfg.out_dim,
+        depth=getattr(cfg, "depth", 4),
+        kernel=getattr(cfg, "kernel", 7),
+    )
 
 
 # --------------------------------------------------------------------------- #
-# 2) SSL OBJECTIVE
+# 2) SSL OBJECTIVE  — # TODO
 # --------------------------------------------------------------------------- #
-class EEGSSL(nn.Module):
-    """Two-view invariance objective: encoder -> Projector -> {VICReg | SIGReg/BCS}.
+class TwoViewVICReg(nn.Module):
+    """Two-view VICReg ("EB time-series JEPA", invariance form).
 
-    `cfg.ssl_loss` selects the anti-collapse term:
-      * "vicreg" (default): eb_jepa.losses.VICRegLoss (variance + covariance)
-      * "sigreg":           eb_jepa.losses.BCS (LeJEPA's Epps-Pulley Gaussianity test)
-    Both losses take the same (z1, z2) projected-view signature, so swapping is a
-    one-line config change (`model.ssl_loss=sigreg`).
+    The dataset returns two independently-corrupted views (v1, v2) of the SAME
+    window (masking + channel-drop + noise + scale jitter — set their strengths
+    in the data config). We encode both, project, and apply VICReg:
+        invariance  : pull the two views' embeddings together (learn what is
+                      invariant to the corruption)
+        variance    : keep each dim's std above a margin  (anti-collapse)
+        covariance  : decorrelate dims                    (anti-collapse)
+    The var+cov terms are what stop the encoder from mapping every window to the
+    same point.
     """
 
     def __init__(self, encoder, cfg):
         super().__init__()
         self.encoder = encoder
-        spec = cfg.get("projector_spec", f"{encoder.out_dim}-1024-1024")
+        spec = getattr(cfg, "projector_spec", f"{cfg.out_dim}-1024-1024-1024")
         self.projector = Projector(spec)
-        self.ssl_loss = cfg.get("ssl_loss", "vicreg")
+        self.ssl_loss = getattr(cfg, "ssl_loss", "vicreg")
         if self.ssl_loss == "vicreg":
-            self.loss_fn = VICRegLoss(inv_coeff=cfg.get("inv_coeff", 25.0),
-                                       std_coeff=cfg.get("std_coeff", 25.0),
-                                       cov_coeff=cfg.get("cov_coeff", 1.0))
+            self.criterion = VICRegLoss(
+                inv_coeff=getattr(cfg, "inv_coeff", 25.0),
+                std_coeff=getattr(cfg, "std_coeff", 25.0),
+                cov_coeff=getattr(cfg, "cov_coeff", 1.0),
+            )
         elif self.ssl_loss == "sigreg":
-            self.loss_fn = BCS(num_slices=cfg.get("num_slices", 256),
-                                lmbd=cfg.get("lmbd", 10.0))
+            # LeJEPA / BCS: invariance + Epps-Pulley Gaussianity test as anti-collapse
+            self.criterion = BCS(
+                num_slices=getattr(cfg, "num_slices", 256),
+                lmbd=getattr(cfg, "lmbd", 10.0),
+            )
         else:
             raise ValueError(f"unknown model.ssl_loss={self.ssl_loss!r}")
+        # --- Phase 5: optional auxiliary spectral terms (default 0 = base run) ---
+        # Both compare the two corrupted views (v1, v2) directly in the spectral
+        # domain. With coeff 0 they are not even evaluated, so the base pipeline is
+        # byte-for-byte unchanged.
+        self.spectral_coeff = float(getattr(cfg, "spectral_coeff", 0.0))
+        self.fft_consistency_coeff = float(getattr(cfg, "fft_consistency_coeff", 0.0))
+        fft_sizes = getattr(cfg, "spectral_fft_sizes", [256, 128, 64, 32])
+        self.spectral_loss = MultiScaleSpectralLoss(
+            fft_sizes=list(fft_sizes),
+            alpha=float(getattr(cfg, "spectral_log_alpha", 1.0)),
+        )
+        self.fft_consistency_loss = FFTMagConsistencyLoss(
+            log=bool(getattr(cfg, "fft_consistency_log", True)),
+        )
 
     def compute_loss(self, batch):
         v1, v2 = batch
-        z1 = self.projector(self.encoder.represent(v1))
-        z2 = self.projector(self.encoder.represent(v2))
-        out = self.loss_fn(z1, z2)
+        # One encoder forward per view; the feature map [B, D, L] is reused for
+        # BOTH the pooled VICReg representation and the spectral terms.
+        fm1 = self.encoder.feature_map(v1)            # [B, D, L]
+        fm2 = self.encoder.feature_map(v2)
+        z1 = self.projector(fm1.mean(dim=2))          # global avg pool == represent()
+        z2 = self.projector(fm2.mean(dim=2))
+        out = self.criterion(z1, z2)
         loss = out["loss"]
-        logs = {k: float(v.item() if torch.is_tensor(v) else v)
-                for k, v in out.items() if k != "loss"}
-        return loss, logs
-
-
-class EEGPredictiveJEPA(nn.Module):
-    """Predictive JEPA: the temporal-dynamics counterpart to the two-view objective.
-
-    Two-view VICReg/SIGReg asks "be invariant to corruption of the same instant."
-    This asks "predict a later instant's representation from an earlier one":
-      * `online_encoder.frames(v1)` -> [B, F, D] context sequence.
-      * `target_encoder` is an EMA (momentum) copy of the online encoder, never
-        trained by gradient — it embeds `v2` (the other augmented view) at each
-        frame, giving a stable, slowly-moving prediction target (BYOL/DINO-style;
-        avoids needing negative pairs to prevent collapse).
-      * an eb_jepa `RNNPredictor` is rolled forward one step at a time from the
-        first context frame, and each predicted frame is compared (MSE) against the
-        target encoder's frame at that position.
-      * anti-collapse (Hinge-std + covariance — the same primitives `VCLoss` and
-        `VICRegLoss` are built from) is applied directly to the online frames, since
-        there is no projector in this objective (the predictor already maps D->D).
-    """
-
-    def __init__(self, encoder, cfg):
-        super().__init__()
-        self.online_encoder = encoder
-        self.target_encoder = copy.deepcopy(encoder)
-        for p in self.target_encoder.parameters():
-            p.requires_grad_(False)
-        self.ema = cfg.get("ema", 0.996)
-        # Deliberately separate from VICReg's std_coeff/cov_coeff (now tuned to the
-        # paper's 25/1 for the *invariance* objective) -- this objective's anti-collapse
-        # term plays a different role (no projector, no invariance term to balance
-        # against) and needs its own weighting.
-        self.std_coeff = cfg.get("pred_std_coeff", 1.0)
-        self.cov_coeff = cfg.get("pred_cov_coeff", 1.0)
-        self.std_loss_fn = HingeStdLoss(std_margin=1.0)
-        self.cov_loss_fn = CovarianceLoss()
-        self.predictor = RNNPredictor(hidden_size=encoder.out_dim, action_dim=1,
-                                       num_layers=1, final_ln=nn.Identity())
-
-    def train(self, mode: bool = True):
-        super().train(mode)
-        self.target_encoder.eval()  # never let the parent's .train() flip this back
-        return self
-
-    @torch.no_grad()
-    def _update_target(self):
-        for tp, op in zip(self.target_encoder.parameters(), self.online_encoder.parameters()):
-            tp.mul_(self.ema).add_(op, alpha=1 - self.ema)
-
-    def compute_loss(self, batch):
-        self._update_target()  # EMA from the online weights as of the *previous* step
-        v1, v2 = batch
-        online_frames = self.online_encoder.frames(v1)         # [B, F, D]
-        with torch.no_grad():
-            target_frames = self.target_encoder.frames(v2)     # [B, F, D]
-
-        B, n_frames, D = online_frames.shape
-        assert n_frames >= 2, "need >=2 frames per window to predict forward"
-        state = online_frames[:, 0].reshape(B, D, 1, 1, 1)
-        action = online_frames.new_zeros(B, 1, 1)               # no actions -> dummy input
-
-        pred_losses = []
-        for t in range(1, n_frames):
-            state = self.predictor(state, action)
-            pred_losses.append(F.mse_loss(state.reshape(B, D), target_frames[:, t]))
-        pred_loss = torch.stack(pred_losses).mean()
-
-        flat = online_frames.reshape(B * n_frames, D)
-        std_loss = self.std_loss_fn(flat)
-        cov_loss = self.cov_loss_fn(flat)
-        loss = pred_loss + self.std_coeff * std_loss + self.cov_coeff * cov_loss
-
-        logs = {"pred_loss": float(pred_loss.item()), "std_loss": float(std_loss.item()),
-                "cov_loss": float(cov_loss.item())}
+        if self.ssl_loss == "vicreg":
+            logs = {
+                "inv": round(out["invariance_loss"].item(), 4),
+                "var": round(out["var_loss"].item(), 4),
+                "cov": round(out["cov_loss"].item(), 4),
+            }
+        else:  # sigreg: invariance + bcs (Epps-Pulley Gaussianity)
+            logs = {
+                "inv": round(out["invariance_loss"].item(), 4),
+                "bcs": round(out["bcs_loss"].item(), 4),
+            }
+        # Phase 5: the spectral terms operate on the ENCODER FEATURE MAPS of the
+        # two views (latent sequences [B, D, L]), NOT the raw inputs. Comparing
+        # raw v1/v2 spectra is constant w.r.t. the model -> zero gradient -> no
+        # effect on training; using the feature maps makes the term encoder-
+        # dependent so it actually backprops into the representation.
+        if self.spectral_coeff > 0:
+            spec = self.spectral_loss(fm1, fm2)
+            loss = loss + self.spectral_coeff * spec
+            logs["spec"] = round(spec.item(), 4)
+        if self.fft_consistency_coeff > 0:
+            fftc = self.fft_consistency_loss(fm1, fm2)
+            loss = loss + self.fft_consistency_coeff * fftc
+            logs["fftc"] = round(fftc.item(), 4)
         return loss, logs
 
 
 def build_ssl(encoder, cfg):
-    """Build the SSL objective selected by `cfg.objective`:
-      * "twoview" (default) -> EEGSSL (VICReg or SIGReg/BCS, per cfg.ssl_loss)
-      * "predictive"         -> EEGPredictiveJEPA (RNNPredictor + EMA target)
+    """SSL objective: two-view VICReg (default) or masked-prediction JEPA.
+
+    cfg.ssl_type = "vicreg" (two-view invariance, default) | "masked"
+    (latent masked-prediction JEPA with an EMA target — the faithful JEPA form).
     """
-    objective = cfg.get("objective", "twoview")
-    if objective == "twoview":
-        return EEGSSL(encoder, cfg)
-    if objective == "predictive":
-        return EEGPredictiveJEPA(encoder, cfg)
-    raise ValueError(f"unknown model.objective={objective!r}")
+    if getattr(cfg, "ssl_type", "vicreg") == "masked":
+        from examples.eeg.masked_jepa import MaskedJEPA
+        return MaskedJEPA(encoder, cfg)
+    return TwoViewVICReg(encoder, cfg)
 
 
 # --------------------------------------------------------------------------- #
@@ -268,4 +225,14 @@ def run(fname="examples/eeg/cfgs/train.yaml", cfg=None, folder=None, **overrides
 if __name__ == "__main__":
     fname = sys.argv[sys.argv.index("--fname") + 1] if "--fname" in sys.argv \
         else "examples/eeg/cfgs/train.yaml"
-    run(fname=fname)
+    # Dotted CLI overrides, e.g. `model.spectral_coeff=0.1 data.aug_exact_corruption=true`.
+    overrides, skip = {}, False
+    for tok in sys.argv[1:]:
+        if skip:
+            skip = False; continue
+        if tok == "--fname":
+            skip = True; continue
+        if "=" in tok:
+            k, v = tok.split("=", 1)
+            overrides[k] = v
+    run(fname=fname, **overrides)

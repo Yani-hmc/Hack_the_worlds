@@ -49,10 +49,23 @@ class EEGConfig:
     aug_scale_jitter: float = 0.2  # per-channel amplitude scale ~ U(1-j, 1+j)
     aug_chan_drop_p: float = 0.2   # prob a channel is zeroed
     aug_time_mask_frac: float = 0.2  # max fraction of timesteps masked
-    # Optional class-balanced subsample of this split (for fast smoke-test runs before
-    # committing to the full corpus). None/1.0 = use the full split.
-    subset_frac: Optional[float] = None   # e.g. 0.05 -> ~5% of recordings, 50/50 normal/abnormal
-    subset_seed: int = 0
+    # --- Phase 2: EB time-series JEPA "exact" corruption ----------------- #
+    # Each view is ~40% corrupted = ~20% time-masking + ~20% outlier injection.
+    # When ``aug_outlier_frac > 0`` a fixed fraction of timepoints (per channel)
+    # is masked AND a disjoint fraction is replaced by large outliers, instead of
+    # the legacy variable-length contiguous mask above. Set aug_outlier_frac=0.0
+    # to fall back to the legacy behaviour exactly (default keeps base pipeline).
+    aug_exact_corruption: bool = False   # gate: use the exact 20%/20% scheme
+    aug_mask_frac: float = 0.2           # fraction of timepoints zero-masked (exact)
+    aug_outlier_frac: float = 0.2        # fraction of timepoints replaced by outliers
+    aug_outlier_scale: float = 6.0       # outlier magnitude in z-scored sigmas (±k)
+
+
+def _list_edf(root: str, split: str) -> List[str]:
+    files = sorted(glob.glob(os.path.join(root, split, "**", "*.edf"), recursive=True))
+    if not files:
+        raise FileNotFoundError(f"No .edf under {os.path.join(root, split)}")
+    return files
 
 
 def _list_labelled(root: str, split: str):
@@ -66,25 +79,6 @@ def _list_labelled(root: str, split: str):
         raise FileNotFoundError(
             f"No labelled .edf under {os.path.join(root, split)}/{{normal,abnormal}}")
     return items
-
-
-def _balanced_subset(items, frac: Optional[float], seed: int):
-    """Class-balanced subsample of `frac` of `items` (list of (path, label)): equal
-    counts of normal/abnormal, regardless of the original class proportions."""
-    if not frac or frac >= 1.0:
-        return items
-    by_class = {0: [], 1: []}
-    for p, label in items:
-        by_class[label].append(p)
-    n_per_class = max(1, round(frac * len(items) / 2))
-    rng = np.random.default_rng(seed)
-    chosen = []
-    for label, paths in by_class.items():
-        paths = list(paths)
-        rng.shuffle(paths)
-        chosen += [(p, label) for p in paths[:n_per_class]]
-    rng.shuffle(chosen)
-    return chosen
 
 
 def _zscore(x: np.ndarray, axis: int) -> np.ndarray:
@@ -103,14 +97,12 @@ class EEGDataset(torch.utils.data.Dataset):
                 "pyedflib is required to read EDF files (pip install pyedflib)")
         self.cfg = cfg
         self.window = int(cfg.window_sec * cfg.sfreq)
-        items = _balanced_subset(_list_labelled(cfg.data_root, cfg.split),
-                                  cfg.subset_frac, cfg.subset_seed)
         if cfg.mode == "ssl":
-            self.files = [p for p, _ in items]   # labels unused, but same balanced subset
+            self.files = _list_edf(cfg.data_root, cfg.split)
             self.items = None
         else:  # supervised / probe: one item per recording
             self.files = None
-            self.items = items
+            self.items = _list_labelled(cfg.data_root, cfg.split)
         # one RNG per worker, re-seeded lazily in __getitem__ via torch seed
         self._rng = np.random.default_rng()
 
@@ -147,8 +139,15 @@ class EEGDataset(torch.utils.data.Dataset):
         return None
 
     def _read_recording_windows(self, path) -> Optional[np.ndarray]:
-        """Read N evenly-spaced z-scored windows -> [N, n_channels, window]."""
-        cfg, N = self.cfg, self.cfg.n_windows
+        """Read windows -> [N, n_channels, window], z-scored.
+
+        - If cfg.n_windows > 0: returns that many evenly-spaced windows (legacy).
+        - If cfg.n_windows == -1: returns ALL non-overlapping windows
+          (= nsamp // self.window). Variable N per recording; matches the
+          BIOT / LaBraM / FEMBA / EEGPT protocol of "every 10s sample = one
+          test point". The literature-canonical fair eval.
+        """
+        cfg = self.cfg
         try:
             f = pyedflib.EdfReader(path)
         except Exception:
@@ -157,9 +156,20 @@ class EEGDataset(torch.utils.data.Dataset):
             if f.signals_in_file < cfg.n_channels:
                 return None
             nsamp = int(min(f.getNSamples()[:cfg.n_channels]))
-            if nsamp <= self.window + 1:
+            if nsamp < self.window:
                 return None
-            starts = np.linspace(0, nsamp - self.window, N).astype(int)
+            if cfg.n_windows < 0:
+                # ALL non-overlapping windows (literature protocol)
+                N = nsamp // self.window
+                if N == 0:
+                    return None
+                starts = np.arange(N) * self.window
+            else:
+                # Legacy: N evenly-spaced windows
+                N = cfg.n_windows
+                if nsamp <= self.window + 1:
+                    return None
+                starts = np.linspace(0, nsamp - self.window, N).astype(int)
             wins = np.empty((N, cfg.n_channels, self.window), dtype=np.float32)
             for c in range(cfg.n_channels):
                 for j, s in enumerate(starts):
@@ -188,12 +198,35 @@ class EEGDataset(torch.utils.data.Dataset):
         if cfg.aug_chan_drop_p > 0:
             mask = (rng.random(cfg.n_channels) > cfg.aug_chan_drop_p).astype(np.float32)
             x *= mask[:, None]
-        # time masking (zero a random contiguous span)
-        if cfg.aug_time_mask_frac > 0:
-            mlen = int(rng.uniform(0, cfg.aug_time_mask_frac) * self.window)
-            if mlen > 0:
-                s = int(rng.integers(0, self.window - mlen))
-                x[:, s:s + mlen] = 0.0
+        if getattr(cfg, "aug_exact_corruption", False):
+            # ---- Phase 2: exact EB time-series corruption (~40% per view) ----
+            # Per channel, pick disjoint random index sets: ~aug_mask_frac of
+            # timepoints are zero-masked and ~aug_outlier_frac are replaced by
+            # large ±k*sigma outliers (z-scored units). Sampling per channel keeps
+            # the two views independently and heterogeneously corrupted.
+            T = self.window
+            n_mask = int(round(cfg.aug_mask_frac * T))
+            n_out = int(round(cfg.aug_outlier_frac * T))
+            n_out = min(n_out, max(T - n_mask, 0))  # keep the two sets disjoint
+            if n_mask > 0 or n_out > 0:
+                for c in range(cfg.n_channels):
+                    if n_mask + n_out > T:
+                        break
+                    idx = rng.permutation(T)
+                    if n_mask > 0:
+                        x[c, idx[:n_mask]] = 0.0
+                    if n_out > 0:
+                        oi = idx[n_mask:n_mask + n_out]
+                        signs = rng.choice(
+                            np.array([-1.0, 1.0], dtype=np.float32), size=n_out)
+                        x[c, oi] = (cfg.aug_outlier_scale * signs).astype(np.float32)
+        else:
+            # legacy behaviour: zero a single random contiguous span
+            if cfg.aug_time_mask_frac > 0:
+                mlen = int(rng.uniform(0, cfg.aug_time_mask_frac) * self.window)
+                if mlen > 0:
+                    s = int(rng.integers(0, self.window - mlen))
+                    x[:, s:s + mlen] = 0.0
         return x
 
     def __getitem__(self, i):

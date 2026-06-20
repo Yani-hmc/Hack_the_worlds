@@ -15,36 +15,36 @@ data:
   aug_scale_jitter: 0.2
   aug_chan_drop_p: 0.2
   aug_time_mask_frac: 0.2
-  subset_frac: null        # e.g. 0.05 for a fast, class-balanced 5% smoke-test run
-  subset_seed: 0
+  # --- Phase 2: exact EB time-series corruption (~40% per view) ---
+  # aug_exact_corruption: false keeps the legacy contiguous time-mask (base run).
+  # Flip to true for ~20% time-masking + ~20% outlier injection per view.
+  aug_exact_corruption: false
+  aug_mask_frac: 0.2          # fraction of timepoints zero-masked (per channel)
+  aug_outlier_frac: 0.2       # fraction of timepoints replaced by outliers
+  aug_outlier_scale: 6.0      # outlier magnitude in z-scored sigmas (±k)
 model:
   in_channels: 19
   out_dim: 256          # latent dim D (encoder output)
-  encoder_type: conv     # conv | labram | eegpt | biot
-  window_len: 2000       # samples per window (sfreq * window_sec, must match data:)
-  # encoder: conv (EEG1DEncoder)
-  hidden: 64            # base conv width, doubles each of `depth` blocks
-  depth: 4              # number of strided conv blocks (T=2000 -> T'=125)
-  kernel_size: 7
-  # encoder: labram | eegpt | biot (patch transformers, examples/eeg/encoders.py)
-  patch_len: 200         # samples per time-patch (1s @ 200Hz) -> 10 patches/channel
-  embed_dim: 128
-  tr_depth: 4            # transformer layers (distinct from conv's `depth`)
-  n_heads: 4
-  mlp_ratio: 4.0
-  dropout: 0.1
-  # SSL objective
-  objective: twoview     # twoview (EEGSSL) | predictive (EEGPredictiveJEPA)
-  ssl_loss: vicreg       # vicreg (default) | sigreg (LeJEPA/BCS anti-collapse) -- twoview only
-  projector_spec: 256-1024-1024   # twoview only
-  inv_coeff: 25.0        # vicreg only — invariance weight (Bardes et al. 2022: 25)
-  std_coeff: 25.0        # vicreg only (paper: 25) -- NOT shared with predictive, see below
-  cov_coeff: 1.0         # vicreg only (paper: 1)  -- NOT shared with predictive, see below
-  num_slices: 256        # sigreg only
-  lmbd: 10.0             # sigreg only
-  ema: 0.996             # predictive only -- target-encoder momentum
-  pred_std_coeff: 1.0    # predictive only -- own anti-collapse std weight (independent
-  pred_cov_coeff: 1.0    # predictive only -- of vicreg's, which now follow the paper's 25/1)
+  # --- 1D conv encoder ---
+  hidden: 64            # base width (doubles each block until out_dim)
+  depth: 4              # strided conv blocks (time downsampled by 2^depth)
+  kernel: 7             # conv kernel size
+  # --- two-view SSL objective (selectable) ---
+  ssl_loss: vicreg      # vicreg (default) | sigreg (LeJEPA / BCS Gaussianity)
+  projector_spec: "256-1024-1024-1024"  # MUST start with out_dim
+  # VICReg-only params — paper-correct (Bardes et al. 2022): (inv, var, cov) = (25, 25, 1)
+  inv_coeff: 25.0       # invariance (view-matching) weight — lambda
+  std_coeff: 25.0       # variance (anti-collapse) weight — mu
+  cov_coeff: 1.0        # covariance (decorrelation) weight — nu
+  # SIGReg-only params (used when ssl_loss=sigreg)
+  num_slices: 256       # number of random projections for BCS
+  lmbd: 10.0            # weight on the BCS (Gaussianity) term
+  # --- Phase 5: optional auxiliary spectral losses (default 0 = base run) ---
+  spectral_coeff: 0.0          # DDSP multi-scale spectral loss weight
+  fft_consistency_coeff: 0.0   # whole-window FFT magnitude consistency weight
+  spectral_fft_sizes: [256, 128, 64, 32]
+  spectral_log_alpha: 1.0      # weight on the log-magnitude term (DDSP alpha)
+  fft_consistency_log: true    # take log of FFT magnitudes in the consistency term
 optim:
   epochs: 20
   lr: 0.001
